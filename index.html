@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>3D Warehouse</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background: #1a1a1a;
+      color: #ffffff;
+      overflow: hidden;
+    }
+    
+    #scene {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    
+    .controls-panel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 300px;
+      max-height: 90vh;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 15px;
+      z-index: 1000;
+      overflow-y: auto;
+      pointer-events: auto;
+    }
+    
+    .controls-panel h2 {
+      margin: 0 0 15px 0;
+      color: #ffa500;
+      font-size: 18px;
+    }
+    
+    .controls-panel label {
+      display: block;
+      margin: 8px 0;
+      font-size: 12px;
+    }
+    
+    .controls-panel input {
+      width: 100%;
+      padding: 5px;
+      margin: 2px 0;
+      background: #333;
+      border: 1px solid #555;
+      color: #fff;
+      border-radius: 3px;
+    }
+    
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .slider {
+      flex: 1;
+      height: 20px;
+      background: #333;
+      outline: none;
+      border-radius: 10px;
+    }
+    
+    .box-count {
+      min-width: 30px;
+      text-align: center;
+      background: #555;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+    
+    .shelf-slider {
+      margin: 10px 0;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 5px;
+    }
+    
+    button {
+      background: #ffa500;
+      color: #000;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-weight: bold;
+    }
+    
+    button:hover {
+      background: #ffb52e;
+    }
+    
+    /* Ensure UI controls don't interfere with 3D scene */
+    .controls-panel * {
+      pointer-events: auto;
+    }
+    
+    #scene canvas {
+      pointer-events: auto;
+    }
+    
+    /* Prevent text selection on UI */
+    .controls-panel {
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="scene">
+    <div style="color: white; padding: 20px; text-align: center;">
+      <h1>🏪 3D Warehouse Generator</h1>
+      <p>Loading 3D scene...</p>
+    </div>
+  </div>
+  
+  <!-- Camera Controls Instructions -->
+  <div style="position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 15px; border-radius: 8px; font-size: 12px; z-index: 1000; pointer-events: none;">
+    <div style="margin-bottom: 8px; color: #ffa500; font-weight: bold;">Camera Controls:</div>
+    <div>• <strong>Left Click + Drag:</strong> Rotate camera</div>
+    <div>• <strong>Mouse Wheel:</strong> Zoom in/out</div>
+    <div>• <strong>Click on 3D scene</strong> (not UI) to control camera</div>
+  </div>
+  
+  <!-- Warehouse Controls Panel -->
+  <div class="controls-panel">
+    <h2>🏪 Warehouse Controls</h2>
+    <p style="color: #ffa500; font-size: 12px;">Status: <span id="status">Loading...</span></p>
+    
+    <label>Number of Aisles: <input type="number" id="aisles" value="2" min="1" max="5" onchange="updateShelfControls()"></label>
+    <label>Aisle Width (m): <input type="number" id="aisleWidth" value="6" min="4" max="12" step="0.5"></label>
+    <label>Aisle Length (m): <input type="number" id="aisleLength" value="20" min="15" max="30" step="1"></label>
+    <label>Shelves per Aisle: <input type="number" id="shelves" value="4" min="1" max="5" onchange="updateShelfControls()"></label>
+    
+    <div id="shelfInputs">
+      <!-- Shelf controls will be generated dynamically -->
+    </div>
+    
+    <button onclick="generateWarehouse()">Generate Warehouse</button>
+    <button onclick="updateShelfControls()" style="background: #666;">Refresh Controls</button>
+    <button onclick="testThreeJS()" style="background: #4CAF50;">Test Three.js</button>
+    
+    <!-- Box Color Legend -->
+    <div style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; border: 1px solid #444;">
+      <h4 style="margin: 0 0 8px 0; color: #ffa500; font-size: 12px;">📦 Box Color Coding:</h4>
+      <div style="font-size: 11px; color: #ccc; line-height: 1.4;">
+        <div style="display: flex; align-items: center; margin: 3px 0;">
+          <div style="width: 15px; height: 15px; background: #4CAF50; margin-right: 8px; border-radius: 2px;"></div>
+          <span><strong>Green Boxes</strong> = Left Side (Aisle Side)</span>
+        </div>
+        <div style="display: flex; align-items: center; margin: 3px 0;">
+          <div style="width: 15px; height: 15px; background: #2196F3; margin-right: 8px; border-radius: 2px;"></div>
+          <span><strong>Blue Boxes</strong> = Right Side (Wall Side)</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Rack Color Legend -->
+    <!-- Removed rack color coding as requested -->
+  </div>
+  <script type="module">
+    import * as THREE from './three.module.js';
+    
+    // Make THREE globally available for debugging
+    window.THREE = THREE;
+    
+    console.log('Three.js loaded successfully:', THREE);
+    
+    // Simple orbit controls
+    class OrbitControls {
+      constructor(camera, domElement) {
+        this.camera = camera;
+        this.domElement = domElement;
+        this.isMouseDown = false;
+        this.mouseX = 0;
+        this.mouseY = 0;
+        this.phi = Math.PI / 4;
+        this.theta = 0;
+        this.radius = 45;
+        this.target = new THREE.Vector3(0, 7, 0);
+        this.minRadius = 10;
+        this.maxRadius = 100;
+        this.minPhi = 0.1;
+        this.maxPhi = Math.PI - 0.1;
+        this.setupEventListeners();
+        this.updateCamera();
+      }
+      setupEventListeners() {
+        this.domElement.addEventListener('mousedown', this.onMouseDown.bind(this));
+        this.domElement.addEventListener('mousemove', this.onMouseMove.bind(this));
+        this.domElement.addEventListener('mouseup', this.onMouseUp.bind(this));
+        this.domElement.addEventListener('wheel', this.onWheel.bind(this));
+        this.domElement.addEventListener('contextmenu', e => e.preventDefault());
+      }
+      onMouseDown(e) {
+        // Only handle events on the 3D scene, not UI elements
+        if (e.target === this.domElement) {
+          if (e.button === 0) this.isMouseDown = true;
+          this.mouseX = e.clientX;
+          this.mouseY = e.clientY;
+          e.preventDefault();
+        }
+      }
+      onMouseMove(e) {
+        // Only handle events on the 3D scene, not UI elements
+        if (e.target === this.domElement && this.isMouseDown) {
+          const dx = e.clientX - this.mouseX;
+          const dy = e.clientY - this.mouseY;
+          this.theta -= dx * 0.01;
+          this.phi += dy * 0.01;
+          this.phi = Math.max(this.minPhi, Math.min(this.maxPhi, this.phi));
+          this.mouseX = e.clientX;
+          this.mouseY = e.clientY;
+          e.preventDefault();
+        }
+      }
+      onMouseUp(e) { 
+        if (e.target === this.domElement) {
+          this.isMouseDown = false; 
+          e.preventDefault();
+        }
+      }
+      onWheel(e) {
+        // Only handle events on the 3D scene, not UI elements
+        if (e.target === this.domElement) {
+          this.radius -= e.deltaY * 0.05;
+          this.radius = Math.max(this.minRadius, Math.min(this.maxRadius, this.radius));
+          e.preventDefault();
+        }
+      }
+      updateCamera() {
+        this.camera.position.x = this.target.x + this.radius * Math.sin(this.phi) * Math.cos(this.theta);
+        this.camera.position.y = this.target.y + this.radius * Math.cos(this.phi);
+        this.camera.position.z = this.target.z + this.radius * Math.sin(this.phi) * Math.sin(this.theta);
+        this.camera.lookAt(this.target);
+      }
+      update() { this.updateCamera(); }
+    }
+    let scene, camera, renderer, controls, animId;
+    const sceneDiv = document.getElementById('scene');
+    
+    // Shelf color system
+    const shelfColors = [
+      0xff6b6b, // Red
+      0x4ecdc4, // Teal
+      0x9c27b0, // Purple
+      0x96ceb4, // Green
+      0xfeca57  // Yellow
+    ];
+    
+    function createLargeTextTexture(text, bgColor = '#1e3a8a', textColor = '#ffffff', size = 'large') {
+      const canvas = document.createElement('canvas');
+      canvas.width = size === 'large' ? 512 : 256;
+      canvas.height = size === 'large' ? 128 : 64;
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Border
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = size === 'large' ? 4 : 2;
+      ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+      
+      // Text
+      ctx.fillStyle = textColor;
+      ctx.font = size === 'large' ? 'bold 48px Arial' : 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, canvas.width/2, canvas.height/2);
+      
+      return new THREE.CanvasTexture(canvas);
+    }
+    
+    function createColoredTextTexture(text, bgColor, textColor = '#ffffff') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, 256, 64);
+      
+      // Border
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(2, 2, 252, 60);
+      
+      // Text
+      ctx.fillStyle = textColor;
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 128, 32);
+      
+      return new THREE.CanvasTexture(canvas);
+    }
+    
+    function createConcreteTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#d0d0d0';
+      ctx.fillRect(0, 0, 1024, 1024);
+      
+      // Add concrete aggregate
+      for (let i = 0; i < 12000; i++) {
+        const x = Math.random() * 1024;
+        const y = Math.random() * 1024;
+        const size = Math.random() * 3 + 1;
+        const gray = 160 + Math.random() * 60;
+        ctx.fillStyle = `rgba(${gray},${gray},${gray},0.6)`;
+        ctx.fillRect(x, y, size, size);
+      }
+      
+      // Add concrete curing lines
+      for (let i = 0; i < 1024; i += 128) {
+        ctx.strokeStyle = 'rgba(180,180,180,0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, 1024);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(1024, i);
+        ctx.stroke();
+      }
+      
+      return new THREE.CanvasTexture(canvas);
+    }
+    
+    function createMetalTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#7a7a7a';
+      ctx.fillRect(0, 0, 512, 512);
+      
+      // Add metallic grain
+      for (let i = 0; i < 2000; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const length = Math.random() * 15 + 5;
+        const width = Math.random() * 2 + 1;
+        const angle = Math.random() * Math.PI;
+        
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.fillStyle = `rgba(120,120,120,${0.3 + Math.random() * 0.4})`;
+        ctx.fillRect(-length/2, -width/2, length, width);
+        ctx.restore();
+      }
+      
+      return new THREE.CanvasTexture(canvas);
+    }
+    
+    function createCardboardTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#a67c52';
+      ctx.fillRect(0, 0, 512, 512);
+      
+      // Add corrugated pattern
+      for (let i = 0; i < 512; i += 6) {
+        ctx.strokeStyle = `rgba(139,69,19,${0.2 + Math.random() * 0.3})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, 512);
+        ctx.stroke();
+      }
+      
+      // Add wear patterns
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const radius = Math.random() * 40 + 20;
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        gradient.addColorStop(0, 'rgba(139,69,19,0.4)');
+        gradient.addColorStop(1, 'rgba(139,69,19,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      }
+      
+      return new THREE.CanvasTexture(canvas);
+    }
+    
+    function createBarcodeTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 256, 128);
+      
+      // Generate random barcode pattern
+      const barWidth = 2;
+      const barHeight = 80;
+      let x = 20;
+      
+      // Barcode bars
+      for (let i = 0; i < 40; i++) {
+        const barThickness = Math.random() > 0.5 ? barWidth : barWidth * 2;
+        ctx.fillStyle = Math.random() > 0.3 ? '#000000' : '#ffffff';
+        ctx.fillRect(x, 20, barThickness, barHeight);
+        x += barThickness;
+      }
+      
+      // Barcode numbers
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('123456789', 128, 110);
+      
+      return new THREE.CanvasTexture(canvas);
+    }
+    
+    function createCleanBox(side = 'left') {
+      // Different colors for left (aisle side) and right (wall side) boxes
+      const boxColors = {
+        left: 0x4CAF50,   // Green for aisle side (left)
+        right: 0x2196F3   // Blue for wall side (right)
+      };
+      
+      const boxColor = boxColors[side] || boxColors.left;
+      
+      // Simple, individual box - no complex groups
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.8, 1.4), 
+        new THREE.MeshStandardMaterial({ 
+          color: boxColor, 
+          roughness: 0.8,
+          metalness: 0.0
+        })
+      );
+      
+      return box;
+    }
+    
+    function createInventoryLabelTexture(side = 'left') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 256, 128);
+      
+      // Border
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(2, 2, 252, 124);
+      
+      // Side indicator with color
+      const sideColors = {
+        left: '#4CAF50',   // Green for left (aisle side)
+        right: '#2196F3'   // Blue for right (wall side)
+      };
+      const sideColor = sideColors[side] || sideColors.left;
+      const sideText = side === 'left' ? 'LEFT (AISLE)' : 'RIGHT (WALL)';
+      
+      ctx.fillStyle = sideColor;
+      ctx.fillRect(5, 5, 246, 25);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(sideText, 128, 20);
+      
+      // Product info
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('PRODUCT: ABC123', 128, 50);
+      ctx.fillText('QTY: 24', 128, 70);
+      ctx.fillText('LOC: A1-B2', 128, 90);
+      ctx.fillText('DATE: 2024', 128, 110);
+      
+      return new THREE.CanvasTexture(canvas);
+    }
+    
+    function makeScene(aisles = 2, aisleWidth = 6, aisleLength = 16, shelves = 4, allShelfBoxes = [[{left: 0, right: 0}, {left: 0, right: 0}, {left: 0, right: 0}], [{left: 0, right: 0}, {left: 0, right: 0}, {left: 0, right: 0}]]) {
+      try {
+        console.log('Starting makeScene with parameters:', { aisles, aisleWidth, aisleLength, shelves, allShelfBoxes });
+        
+        // Check if Three.js is loaded
+        if (typeof THREE === 'undefined') {
+          throw new Error('Three.js not loaded');
+        }
+        
+        // Calculate maximum racks across all shelves to determine spacing
+        let maxRacks = 2; // Default minimum
+        for (let a = 0; a < allShelfBoxes.length; a++) {
+          for (let s = 0; s < allShelfBoxes[a].length; s++) {
+            const rackCount = allShelfBoxes[a][s]?.racks || 2;
+            maxRacks = Math.max(maxRacks, rackCount);
+          }
+        }
+        
+        // Adjust aisle spacing based on maximum racks
+        const baseSpacing = aisleWidth + 8;
+        const rackSpacingMultiplier = Math.max(1, maxRacks / 2); // More racks = more space needed
+        const aisleSpacing = baseSpacing * rackSpacingMultiplier;
+        
+        console.log('Adapting warehouse layout:', { maxRacks, baseSpacing, rackSpacingMultiplier, aisleSpacing });
+        
+        // Clean up previous scene
+        if (renderer) {
+          console.log('Cleaning up previous renderer...');
+          cancelAnimationFrame(animId);
+          if (renderer.domElement && renderer.domElement.parentNode) {
+            renderer.domElement.parentNode.removeChild(renderer.domElement);
+          }
+        }
+        
+        console.log('Creating new scene...');
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        
+        console.log('Creating camera...');
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 400);
+        camera.position.set(40, 40, 40);
+        
+        console.log('Creating renderer...');
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        
+        // Clear the scene div and add the renderer
+        console.log('Setting up scene div...');
+        const sceneDiv = document.getElementById('scene');
+        if (!sceneDiv) {
+          throw new Error('Scene div not found');
+        }
+        sceneDiv.innerHTML = '';
+        sceneDiv.appendChild(renderer.domElement);
+        
+        console.log('Creating controls...');
+        controls = new OrbitControls(camera, renderer.domElement);
+        
+        console.log('Creating floor...');
+        // Enhanced floor with safety markings
+        const floor = new THREE.Mesh(
+          new THREE.PlaneGeometry(120, 120),
+          new THREE.MeshStandardMaterial({
+            color: 0xd0d0d0,
+            roughness: 0.9,
+            metalness: 0.0,
+            map: createConcreteTexture()
+          })
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+        
+        // Add floor safety markings
+        for (let i = -3; i <= 3; i++) {
+          const marking = new THREE.Mesh(
+            new THREE.PlaneGeometry(120, 0.3),
+            new THREE.MeshStandardMaterial({ 
+              color: 0xffeb3b,
+              emissive: 0x222200,
+              emissiveIntensity: 0.1
+            })
+          );
+          marking.rotation.x = -Math.PI / 2;
+          marking.position.set(0, 0.01, i * 15);
+          scene.add(marking);
+        }
+        
+        // Aisles and shelves - now using dynamic spacing
+        const startX = -((aisles - 1) * aisleSpacing) / 2;
+        
+        // Add aisle safety markings
+        for (let a = 0; a < aisles; a++) {
+          const x = startX + a * aisleSpacing;
+          // Yellow safety lines around each aisle
+          for (let i = -1; i <= 1; i += 2) {
+            const safetyLine = new THREE.Mesh(
+              new THREE.PlaneGeometry(aisleLength + 2, 0.2),
+              new THREE.MeshStandardMaterial({ 
+                color: 0xffeb3b,
+                emissive: 0x222200,
+                emissiveIntensity: 0.1
+              })
+            );
+            safetyLine.rotation.x = -Math.PI / 2;
+            safetyLine.position.set(x + i * (aisleWidth/2 + 0.5), 0.02, 0);
+            scene.add(safetyLine);
+          }
+        }
+        
+        // Add floor grid
+        const grid = new THREE.GridHelper(120, 24, 0x888888, 0x888888);
+        grid.material.opacity = 0.2;
+        grid.material.transparent = true;
+        scene.add(grid);
+        
+        // Enhanced walls - fixed materials to prevent white shadows
+        const wallMat = new THREE.MeshStandardMaterial({ 
+          color: 0xe8e8e8, 
+          roughness: 0.8,
+          metalness: 0.0,
+          map: createConcreteTexture()
+        });
+        const wallH = 20;
+        
+        const wallZ = new THREE.Mesh(new THREE.PlaneGeometry(120, wallH), wallMat);
+        wallZ.position.set(0, wallH / 2, -60);
+        wallZ.receiveShadow = false; // Disabled shadow receiving to prevent white shadows
+        scene.add(wallZ);
+        
+        const wallX1 = new THREE.Mesh(new THREE.PlaneGeometry(120, wallH), wallMat);
+        wallX1.rotation.y = Math.PI / 2;
+        wallX1.position.set(-60, wallH / 2, 0);
+        wallX1.receiveShadow = false; // Disabled shadow receiving
+        scene.add(wallX1);
+        
+        const wallX2 = new THREE.Mesh(new THREE.PlaneGeometry(120, wallH), wallMat);
+        wallX2.rotation.y = -Math.PI / 2;
+        wallX2.position.set(60, wallH / 2, 0);
+        wallX2.receiveShadow = false; // Disabled shadow receiving
+        scene.add(wallX2);
+        
+        // Enhanced ceiling with lighting fixtures
+        const ceiling = new THREE.Mesh(
+          new THREE.PlaneGeometry(120, 120), 
+          new THREE.MeshStandardMaterial({ 
+            color: 0xf0f0f0, 
+            roughness: 0.7,
+            map: createConcreteTexture()
+          })
+        );
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.y = wallH;
+        scene.add(ceiling);
+        
+        // Enhanced lighting system
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+        
+        // Main directional light (sunlight)
+        const mainLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        mainLight.position.set(30, 60, 30);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        mainLight.shadow.camera.near = 0.5;
+        mainLight.shadow.camera.far = 200;
+        mainLight.shadow.camera.left = -60;
+        mainLight.shadow.camera.right = 60;
+        mainLight.shadow.camera.top = 60;
+        mainLight.shadow.camera.bottom = -60;
+        scene.add(mainLight);
+        
+        // Additional fill lights for better illumination
+        const fillLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        fillLight1.position.set(-30, 40, -30);
+        scene.add(fillLight1);
+        
+        const fillLight2 = new THREE.DirectionalLight(0xffffff, 0.6);
+        fillLight2.position.set(0, 50, -40);
+        scene.add(fillLight2);
+        
+        // Industrial lighting fixtures - brighter and more realistic
+        for (let x = -50; x <= 50; x += 25) {
+          for (let z = -50; z <= 50; z += 25) {
+            const fixture = new THREE.Mesh(
+              new THREE.BoxGeometry(2, 0.3, 1),
+              new THREE.MeshStandardMaterial({ 
+                color: 0x2c3e50,
+                metalness: 0.8,
+                roughness: 0.2
+              })
+            );
+            fixture.position.set(x, wallH - 1, z);
+            scene.add(fixture);
+            
+            // Brighter light source
+            const light = new THREE.PointLight(0xffffff, 1.2, 35);
+            light.position.set(x, wallH - 1.5, z);
+            scene.add(light);
+          }
+        }
+        
+        // Aisles and shelves
+        for (let a = 0; a < aisles; a++) {
+          const x = startX + a * aisleSpacing;
+          const shelfBoxes = allShelfBoxes[a] || [3, 3, 3];
+          createAisle(scene, x, 0, 0, aisleLength, aisleWidth, shelves, shelves, shelfBoxes, a + 1);
+        }
+        
+        // Enhanced pallets and boxes along sides
+        for (let i = 0; i < 6; i++) {
+          const pallet = createPalletWithBoxes();
+          pallet.position.set(-55 + i * 18, 0, -45);
+          scene.add(pallet);
+        }
+        for (let i = 0; i < 6; i++) {
+          const pallet = createPalletWithBoxes();
+          pallet.position.set(-55 + i * 18, 0, 45);
+          scene.add(pallet);
+        }
+        
+        // Enhanced forklift
+        const forklift = createForklift();
+        forklift.position.set(15, 0, 25);
+        forklift.rotation.y = Math.PI / 4;
+        scene.add(forklift);
+        
+        // Add safety equipment
+        addSafetyEquipment(scene);
+        
+        // Add a simple skybox for realism
+        const skyGeo = new THREE.SphereGeometry(200, 32, 32);
+        const skyMat = new THREE.MeshBasicMaterial({ color: 0xbfd7ff, side: THREE.BackSide });
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        scene.add(sky);
+
+        // Add some ground stains for realism
+        for (let i = 0; i < 10; i++) {
+          const stain = new THREE.Mesh(
+            new THREE.CircleGeometry(Math.random() * 2 + 1, 24),
+            new THREE.MeshStandardMaterial({ color: 0x888888, transparent: true, opacity: 0.18 })
+          );
+          stain.rotation.x = -Math.PI / 2;
+          stain.position.set(
+            (Math.random() - 0.5) * 80,
+            0.011,
+            (Math.random() - 0.5) * 80
+          );
+          scene.add(stain);
+        }
+        
+        // Add construction workers
+        addWorkers(scene);
+        
+        // Resize
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation loop
+        function animate() {
+          animId = requestAnimationFrame(animate);
+          if (controls) controls.update();
+          if (renderer && scene && camera) {
+            renderer.render(scene, camera);
+          }
+        }
+        
+        console.log('Starting animation loop...');
+        animate();
+        
+        console.log('makeScene completed successfully');
+        
+      } catch (error) {
+        console.error('Error in makeScene:', error);
+        const sceneDiv = document.getElementById('scene');
+        if (sceneDiv) {
+          sceneDiv.innerHTML = `
+            <div style="color: white; padding: 20px; text-align: center;">
+              <h2>Error Creating Warehouse</h2>
+              <p>${error.message}</p>
+              <button onclick="location.reload()" style="background: #ffa500; color: black; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Reload Page</button>
+            </div>
+          `;
+        }
+        throw error;
+      }
+    }
+    
+    function createAisle(scene, x, y, z, length, width, shelfCount, levels, shelfBoxes, aisleNumber) {
+      const group = new THREE.Group();
+      const shelfLen = length;
+      const shelfDepth = 1.5; // Reduced shelf depth for better box visibility
+      const shelfHeight = 12; // Taller to reach the top shelf
+      const postMat = new THREE.MeshStandardMaterial({ 
+        color: 0x5a5a5a, 
+        metalness: 0.8, 
+        roughness: 0.2
+      });
+      const shelfMat = new THREE.MeshStandardMaterial({ 
+        color: 0x7a7a7a, 
+        metalness: 0.6, 
+        roughness: 0.3
+      });
+      
+      // Aisle number sign - positioned higher with neutral color
+      const aisleSign = new THREE.Mesh(
+        new THREE.PlaneGeometry(4, 2),
+        new THREE.MeshStandardMaterial({ 
+          map: createLargeTextTexture(`AISLE ${aisleNumber}`, '#666666', '#ffffff'),
+          transparent: true,
+          opacity: 0.9
+        })
+      );
+      aisleSign.position.set(x, shelfHeight + 4, z); // Moved higher
+      group.add(aisleSign);
+      
+      // Add aisle floor marking for realism with neutral color
+      const floorMarking = new THREE.Mesh(
+        new THREE.PlaneGeometry(width + 0.5, 0.1),
+        new THREE.MeshStandardMaterial({ 
+          color: 0x666666, // Neutral gray
+          emissive: 0x333333,
+          emissiveIntensity: 0.2
+        })
+      );
+      floorMarking.rotation.x = -Math.PI / 2;
+      floorMarking.position.set(x, 0.01, z);
+      group.add(floorMarking);
+      
+      // Create shelves on BOTH sides of the aisle
+      // Left side shelves (negative X)
+      createSideShelves(group, x - width/2 - shelfDepth/2, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, 'left', aisleNumber, shelfBoxes);
+      
+      // Right side shelves (positive X)
+      createSideShelves(group, x + width/2 + shelfDepth/2, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, 'right', aisleNumber, shelfBoxes);
+      
+      scene.add(group);
+    }
+    
+    function createSideShelves(group, shelfX, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, side, aisleNumber, shelfBoxes) {
+      // Calculate proper pole height to reach the top shelf
+      const topShelfHeight = 2 + (levels - 1) * 3.5 + 1; // Height of top shelf + extra clearance
+      const poleHeight = topShelfHeight + 1; // Add extra height for structural support
+      
+      // Create support poles that adapt to the number of racks per shelf
+      const polePositions = [];
+      
+      // Get the rack count for this shelf level (default to 1 if not specified)
+      const rackCount = parseInt(document.getElementById(`racks${aisleNumber}shelf${1}`)?.value) || 1;
+      
+      if (rackCount === 1) {
+        // Single rack - poles at start and end of entire shelf
+        polePositions.push(z - shelfLen/2); // Start pole
+        polePositions.push(z + shelfLen/2); // End pole
+        
+        // Add poles between shelf levels if there are multiple shelves
+        if (levels > 1) {
+          for (let i = 1; i < levels; i++) {
+            const yLevel = 2 + i * 3.5;
+            // Add a pole at the middle of the shelf length for each shelf level
+            polePositions.push(z);
+          }
+        }
+      } else {
+        // Multiple racks - create poles for each rack
+        const rackWidth = shelfLen / rackCount;
+        
+        for (let r = 1; r <= rackCount; r++) {
+          const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
+          const rackEnd = z - shelfLen/2 + r * rackWidth;
+          
+          // Add poles at the start and end of each rack
+          polePositions.push(rackStart); // Start of this rack
+          polePositions.push(rackEnd);   // End of this rack
+        }
+        
+        // Add poles between shelf levels if there are multiple shelves
+        if (levels > 1) {
+          for (let i = 1; i < levels; i++) {
+            const yLevel = 2 + i * 3.5;
+            // Add poles at the middle of each rack for each shelf level
+            for (let r = 1; r <= rackCount; r++) {
+              const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
+              const rackEnd = z - shelfLen/2 + r * rackWidth;
+              const rackCenter = (rackStart + rackEnd) / 2;
+              polePositions.push(rackCenter);
+            }
+          }
+        }
+      }
+      
+      // Create poles at calculated positions with proper height
+      for (let i = 0; i < polePositions.length; i++) {
+        const pole = new THREE.Mesh(new THREE.BoxGeometry(0.2, poleHeight, 0.2), postMat);
+        pole.position.set(shelfX, poleHeight / 2, polePositions[i]);
+        pole.castShadow = true;
+        pole.receiveShadow = true;
+        pole.material.transparent = true;
+        pole.material.opacity = 0.6;
+        pole.material.color.setHex(0x2a2a2a);
+        group.add(pole);
+        
+        // Add simple accent strips to poles for better visibility
+        for (let l = 0; l < levels; l++) {
+          const yLevel = 2 + l * 3.5;
+          
+          const accentStrip = new THREE.Mesh(
+            new THREE.BoxGeometry(0.25, 0.1, 0.25),
+            new THREE.MeshStandardMaterial({ 
+              color: 0x666666, // Neutral gray
+              emissive: 0x333333,
+              emissiveIntensity: 0.1
+            })
+          );
+          accentStrip.position.set(shelfX, yLevel + 0.5, polePositions[i]);
+          group.add(accentStrip);
+        }
+      }
+      
+      // Create shelves at each level
+      for (let l = 0; l < levels; l++) {
+        const yLevel = 2 + l * 3.5; // Spacing between levels
+        const shelfData = shelfBoxes[l] || { racks: 2, left: 0, right: 0 };
+        const rackCount = parseInt(document.getElementById(`racks${aisleNumber}shelf${l+1}`)?.value) || 2;
+        
+        if (rackCount === 1) {
+          // Single rack - create one continuous shelf
+          const shelfMat = new THREE.MeshStandardMaterial({ 
+            color: 0x7a7a7a, // Neutral gray
+            metalness: 0.6, 
+            roughness: 0.3
+          });
+          const shelf = new THREE.Mesh(new THREE.BoxGeometry(shelfDepth - 0.4, 0.25, shelfLen - 0.4), shelfMat);
+          shelf.position.set(shelfX, yLevel, z);
+          shelf.castShadow = true;
+          shelf.receiveShadow = true;
+          group.add(shelf);
+        } else {
+          // Multiple racks - create separate shelf segments with dividers
+          const rackWidth = shelfLen / rackCount;
+          
+          for (let r = 1; r <= rackCount; r++) {
+            const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
+            const rackEnd = z - shelfLen/2 + r * rackWidth;
+            const rackCenter = (rackStart + rackEnd) / 2;
+            
+            // Create individual shelf segment for this rack
+            const shelfMat = new THREE.MeshStandardMaterial({ 
+              color: 0x7a7a7a, // Neutral gray
+              metalness: 0.6, 
+              roughness: 0.3
+            });
+            const shelfSegment = new THREE.Mesh(
+              new THREE.BoxGeometry(shelfDepth - 0.4, 0.25, rackWidth - 0.4), 
+              shelfMat
+            );
+            shelfSegment.position.set(shelfX, yLevel, rackCenter);
+            shelfSegment.castShadow = true;
+            shelfSegment.receiveShadow = true;
+            group.add(shelfSegment);
+            
+            // Add rack divider (except for the last rack)
+            if (r < rackCount) {
+              const divider = new THREE.Mesh(
+                new THREE.BoxGeometry(shelfDepth - 0.2, 0.8, 0.3),
+                new THREE.MeshStandardMaterial({ 
+                  color: 0x222222, // Very dark gray
+                  metalness: 0.9,
+                  roughness: 0.1
+                })
+              );
+              divider.position.set(shelfX, yLevel + 0.4, rackEnd);
+              group.add(divider);
+              
+              // Add a second divider for extra visibility
+              const divider2 = new THREE.Mesh(
+                new THREE.BoxGeometry(shelfDepth - 0.2, 0.4, 0.1),
+                new THREE.MeshStandardMaterial({ 
+                  color: 0x000000, // Black
+                  metalness: 1.0,
+                  roughness: 0.0
+                })
+              );
+              divider2.position.set(shelfX, yLevel + 0.8, rackEnd);
+              group.add(divider2);
+            }
+          }
+        }
+        
+        // Add rack number labels
+        for (let r = 1; r <= rackCount; r++) {
+          const rackWidth = shelfLen / rackCount;
+          const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
+          const rackEnd = z - shelfLen/2 + r * rackWidth;
+          const rackCenter = (rackStart + rackEnd) / 2;
+          
+          const rackLabel = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.8, 0.4),
+            new THREE.MeshStandardMaterial({ 
+              map: createLargeTextTexture(`R${r}`, '#ffffff', '#000000', 'small'),
+              transparent: true,
+              opacity: 0.9
+            })
+          );
+          rackLabel.position.set(shelfX, yLevel + 0.5, rackCenter);
+          group.add(rackLabel);
+        }
+        
+        // Add level label with neutral color
+        const levelLabel = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.5, 0.8),
+          new THREE.MeshStandardMaterial({ 
+            map: createLargeTextTexture(`${l+1}`, '#666666', '#ffffff'),
+            transparent: true,
+            opacity: 0.9
+          })
+        );
+        levelLabel.position.set(shelfX, yLevel + 0.4, z - shelfLen/2 - 1.5);
+        group.add(levelLabel);
+        
+        // Add informative box count labels for each rack
+        for (let r = 1; r <= rackCount; r++) {
+          const leftBoxes = parseInt(document.getElementById(`rack${aisleNumber}shelf${l+1}rack${r}left`)?.value) || 0;
+          const rightBoxes = parseInt(document.getElementById(`rack${aisleNumber}shelf${l+1}rack${r}right`)?.value) || 0;
+          const totalBoxes = leftBoxes + rightBoxes;
+          
+          // Calculate position for this rack's label
+          const rackWidth = shelfLen / rackCount;
+          const rackCenter = z - shelfLen/2 + (r - 0.5) * rackWidth;
+          
+          // Create informative label showing rack and box count
+          const boxInfoLabel = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.2, 0.5),
+            new THREE.MeshStandardMaterial({ 
+              map: createLargeTextTexture(`R${r}: ${totalBoxes} boxes`, '#666666', '#ffffff', 'small'),
+              transparent: true,
+              opacity: 0.9
+            })
+          );
+          boxInfoLabel.position.set(shelfX, yLevel + 1.2, rackCenter);
+          group.add(boxInfoLabel);
+          
+          // Add detailed breakdown if there are boxes
+          if (totalBoxes > 0) {
+            const detailLabel = new THREE.Mesh(
+              new THREE.PlaneGeometry(1.0, 0.4),
+              new THREE.MeshStandardMaterial({ 
+                map: createLargeTextTexture(`L:${leftBoxes} R:${rightBoxes}`, '#666666', '#ffffff', 'small'),
+                transparent: true,
+                opacity: 0.8
+              })
+            );
+            detailLabel.position.set(shelfX, yLevel + 1.6, rackCenter);
+            group.add(detailLabel);
+          }
+          
+          // Create boxes for this rack
+          if (leftBoxes > 0 || rightBoxes > 0) {
+            // Calculate rack boundaries
+            const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
+            const rackEnd = z - shelfLen/2 + r * rackWidth;
+            const rackCenter = (rackStart + rackEnd) / 2;
+            
+            // Position left side boxes (aisle side) in this rack
+            if (leftBoxes > 0) {
+              console.log(`Creating ${leftBoxes} left boxes for rack ${r}`);
+              for (let b = 0; b < leftBoxes; b++) {
+                const box = createCleanBox('left');
+                // Use fixed spacing to ensure boxes don't overlap
+                const boxSpacing = 2.0; // Fixed spacing between boxes
+                const startZ = rackStart + 2.0; // Start position
+                const boxZ = startZ + b * boxSpacing;
+                console.log(`Left box ${b + 1} positioned at Z: ${boxZ}`);
+                box.position.set(shelfX, yLevel + 0.8, boxZ);
+                box.castShadow = true;
+                box.receiveShadow = true;
+                group.add(box);
+              }
+            }
+            
+            // Position right side boxes (wall side) in this rack
+            if (rightBoxes > 0) {
+              console.log(`Creating ${rightBoxes} right boxes for rack ${r}`);
+              for (let b = 0; b < rightBoxes; b++) {
+                const box = createCleanBox('right');
+                // Use fixed spacing to ensure boxes don't overlap
+                const boxSpacing = 2.0; // Fixed spacing between boxes
+                const startZ = rackCenter + 2.0; // Start position for right side
+                const boxZ = startZ + b * boxSpacing;
+                console.log(`Right box ${b + 1} positioned at Z: ${boxZ}`);
+                box.position.set(shelfX, yLevel + 0.8, boxZ);
+                box.castShadow = true;
+                box.receiveShadow = true;
+                group.add(box);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    function createSimpleBox() {
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.8, 1.4), 
+        new THREE.MeshStandardMaterial({ 
+          color: 0x8b4513, 
+          roughness: 0.8
+        })
+      );
+      return box;
+    }
+    
+    function createPalletWithBoxes() {
+      const group = new THREE.Group();
+      
+      // Enhanced pallet
+      const pallet = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.2, 1.2), 
+        new THREE.MeshStandardMaterial({ 
+          color: 0x8b4513, 
+          roughness: 0.8,
+          map: createCardboardTexture()
+        })
+      );
+      pallet.position.y = 0.1;
+      pallet.castShadow = true;
+      pallet.receiveShadow = true;
+      group.add(pallet);
+      
+      // Add pallet slats
+      for (let i = 0; i < 3; i++) {
+        const slat = new THREE.Mesh(
+          new THREE.BoxGeometry(1.2, 0.05, 0.1),
+          new THREE.MeshStandardMaterial({ color: 0x8b4513 })
+        );
+        slat.position.set(0, 0.225, -0.4 + i * 0.4);
+        group.add(slat);
+      }
+      
+      // Enhanced boxes
+      const boxCount = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < boxCount; i++) {
+        const box = new THREE.Mesh(
+          new THREE.BoxGeometry(1.0, 0.8, 1.2), 
+          new THREE.MeshStandardMaterial({ 
+            color: 0xa67c52, 
+            roughness: 0.9, 
+            map: createCardboardTexture() 
+          })
+        );
+        box.position.set(0, 0.2 + 0.4 + i * 0.85, 0);
+        box.castShadow = true;
+        box.receiveShadow = true;
+        group.add(box);
+      }
+      return group;
+    }
+    
+    function createForklift() {
+      const group = new THREE.Group();
+      
+      // Enhanced body
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(1.8, 1.2, 2.0), 
+        new THREE.MeshStandardMaterial({ 
+          color: 0xffa500, 
+          roughness: 0.7, 
+          metalness: 0.3 
+        })
+      );
+      body.position.y = 0.6;
+      body.castShadow = true;
+      body.receiveShadow = true;
+      group.add(body);
+      
+      // Enhanced cabin
+      const cabin = new THREE.Mesh(
+        new THREE.BoxGeometry(1.0, 1.0, 1.2), 
+        new THREE.MeshStandardMaterial({ 
+          color: 0x222, 
+          roughness: 0.5 
+        })
+      );
+      cabin.position.set(0, 1.2, -0.3);
+      cabin.castShadow = true;
+      group.add(cabin);
+      
+      // Enhanced forks
+      for (let i = -1; i <= 1; i += 2) {
+        const fork = new THREE.Mesh(
+          new THREE.BoxGeometry(0.1, 0.08, 1.5), 
+          new THREE.MeshStandardMaterial({ 
+            color: 0x888, 
+            metalness: 0.8, 
+            roughness: 0.3 
+          })
+        );
+        fork.position.set(i * 0.3, 0.15, 1.8);
+        group.add(fork);
+      }
+      
+      // Enhanced wheels
+      for (let i = -1; i <= 1; i += 2) {
+        for (let j = -1; j <= 1; j += 2) {
+          const wheel = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.25, 0.25, 0.2, 16), 
+            new THREE.MeshStandardMaterial({ 
+              color: 0x222 
+            })
+          );
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(i * 0.6, 0.25, j * 0.8);
+          wheel.castShadow = true;
+          group.add(wheel);
+        }
+      }
+      return group;
+    }
+    
+    function addSafetyEquipment(scene) {
+      // Fire extinguisher
+      const extinguisher = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.2, 1.5),
+        new THREE.MeshStandardMaterial({ color: 0xff0000 })
+      );
+      extinguisher.position.set(-50, 0.75, -50);
+      scene.add(extinguisher);
+      
+      // Safety signs
+      const safetySign = new THREE.Mesh(
+        new THREE.PlaneGeometry(2, 1.5),
+        new THREE.MeshStandardMaterial({ 
+          map: createLargeTextTexture('SAFETY FIRST', '#ff0000', '#ffffff'),
+          transparent: true,
+          opacity: 0.9
+        })
+      );
+      safetySign.position.set(-55, 3, -55);
+      scene.add(safetySign);
+      
+      // Add pallet jack
+      const palletJack = createPalletJack();
+      palletJack.position.set(25, 0, 15);
+      palletJack.rotation.y = Math.PI / 6;
+      scene.add(palletJack);
+      
+      // Add safety cones
+      for (let i = 0; i < 4; i++) {
+        const cone = new THREE.Mesh(
+          new THREE.ConeGeometry(0.3, 0.8, 8),
+          new THREE.MeshStandardMaterial({ color: 0xff6600 })
+        );
+        cone.position.set(-45 + i * 8, 0.4, -40);
+        scene.add(cone);
+      }
+      
+      // Add emergency exit sign
+      const exitSign = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.5, 1),
+        new THREE.MeshStandardMaterial({ 
+          map: createLargeTextTexture('EXIT', '#00ff00', '#000000'),
+          transparent: true,
+          opacity: 0.9
+        })
+      );
+      exitSign.position.set(55, 4, 55);
+      scene.add(exitSign);
+      
+      // Add security cameras
+      for (let i = 0; i < 3; i++) {
+        const camera = createSecurityCamera();
+        camera.position.set(-40 + i * 40, 18, -55);
+        camera.rotation.y = Math.PI / 6;
+        scene.add(camera);
+      }
+      
+      // Add HVAC vents
+      for (let i = 0; i < 4; i++) {
+        const vent = createHVACVent();
+        vent.position.set(-45 + i * 30, 19, 0);
+        scene.add(vent);
+      }
+      
+      // Add temperature display
+      const tempDisplay = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.2, 0.8),
+        new THREE.MeshStandardMaterial({ 
+          map: createLargeTextTexture('72°F', '#00ff00', '#000000'),
+          transparent: true,
+          opacity: 0.9
+        })
+      );
+      tempDisplay.position.set(-55, 5, -55);
+      scene.add(tempDisplay);
+    }
+    
+    function createSecurityCamera() {
+      const group = new THREE.Group();
+      
+      // Camera body
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.2, 0.4),
+        new THREE.MeshStandardMaterial({ color: 0x222222 })
+      );
+      group.add(body);
+      
+      // Camera lens
+      const lens = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 0.1, 8),
+        new THREE.MeshStandardMaterial({ color: 0x000000 })
+      );
+      lens.rotation.x = Math.PI / 2;
+      lens.position.set(0, 0, 0.25);
+      group.add(lens);
+      
+      // Mounting bracket
+      const bracket = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.4, 0.1),
+        new THREE.MeshStandardMaterial({ color: 0x444444 })
+      );
+      bracket.position.set(0, -0.3, 0);
+      group.add(bracket);
+      
+      return group;
+    }
+    
+    function createHVACVent() {
+      const group = new THREE.Group();
+      
+      // Vent cover
+      const cover = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 0.1, 1.5),
+        new THREE.MeshStandardMaterial({ color: 0x666666 })
+      );
+      group.add(cover);
+      
+      // Vent grates
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          const grate = new THREE.Mesh(
+            new THREE.BoxGeometry(0.4, 0.05, 0.4),
+            new THREE.MeshStandardMaterial({ color: 0x888888 })
+          );
+          grate.position.set(-0.5 + i * 0.5, 0.075, -0.5 + j * 0.5);
+          group.add(grate);
+        }
+      }
+      
+      return group;
+    }
+    
+    function createPalletJack() {
+      const group = new THREE.Group();
+      
+      // Main body
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 0.3, 0.8),
+        new THREE.MeshStandardMaterial({ color: 0x444444 })
+      );
+      body.position.y = 0.15;
+      group.add(body);
+      
+      // Handle
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 1.2),
+        new THREE.MeshStandardMaterial({ color: 0x666666 })
+      );
+      handle.rotation.z = Math.PI / 4;
+      handle.position.set(0, 0.8, -0.3);
+      group.add(handle);
+      
+      // Wheels
+      for (let i = -1; i <= 1; i += 2) {
+        const wheel = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.15, 0.15, 0.1, 8),
+          new THREE.MeshStandardMaterial({ color: 0x222222 })
+        );
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(i * 0.4, 0.15, 0.3);
+        group.add(wheel);
+      }
+      
+      return group;
+    }
+    
+    function addWorkers(scene) {
+      // Add 4 construction workers in different locations
+      const workerPositions = [
+        { x: 10, y: 0, z: 10, action: 'carry' },
+        { x: -15, y: 0, z: -10, action: 'walk' },
+        { x: 20, y: 0, z: -20, action: 'talk' },
+        { x: -25, y: 0, z: 15, action: 'wave' }
+      ];
+      for (const pos of workerPositions) {
+        const worker = createWorker(pos.action);
+        worker.position.set(pos.x, pos.y, pos.z);
+        scene.add(worker);
+      }
+    }
+    
+    function createWorker(action = 'idle') {
+      const group = new THREE.Group();
+      // Body
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.5, 0.5, 2, 16),
+        new THREE.MeshStandardMaterial({ color: 0xf4c542 }) // yellow vest
+      );
+      body.position.y = 1;
+      group.add(body);
+      // Head
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.45, 16, 16),
+        new THREE.MeshStandardMaterial({ color: 0xffe0b0 }) // skin
+      );
+      head.position.y = 2.3;
+      group.add(head);
+      // Helmet
+      const helmet = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 16, 16, 0, Math.PI),
+        new THREE.MeshStandardMaterial({ color: 0xffa500 }) // orange helmet
+      );
+      helmet.position.y = 2.55;
+      helmet.rotation.x = Math.PI;
+      group.add(helmet);
+      // Arms
+      for (let i = -1; i <= 1; i += 2) {
+        const arm = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.13, 0.13, 1.1, 12),
+          new THREE.MeshStandardMaterial({ color: 0xffe0b0 })
+        );
+        arm.position.set(i * 0.6, 1.7, 0);
+        arm.rotation.z = i * Math.PI / 6;
+        if (action === 'wave' && i === 1) arm.rotation.x = -Math.PI / 2;
+        if (action === 'carry' && i === -1) arm.rotation.x = Math.PI / 2.5;
+        group.add(arm);
+      }
+      // Legs
+      for (let i = -1; i <= 1; i += 2) {
+        const leg = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.16, 0.16, 1.2, 12),
+          new THREE.MeshStandardMaterial({ color: 0x4444ff }) // blue pants
+        );
+        leg.position.set(i * 0.23, 0.4, 0);
+        group.add(leg);
+      }
+      // Add a box if carrying
+      if (action === 'carry') {
+        const box = new THREE.Mesh(
+          new THREE.BoxGeometry(0.7, 0.5, 0.7),
+          new THREE.MeshStandardMaterial({ color: 0xa67c52 })
+        );
+        box.position.set(-0.6, 1.7, 0.3);
+        group.add(box);
+      }
+      return group;
+    }
+    
+    // Function to update box count display
+    window.updateBoxCount = function(slider) {
+      const shelfId = slider.id;
+      const count = slider.value;
+      document.getElementById(`count${shelfId}`).textContent = count;
+    };
+    
+    // Function to update rack count display
+    window.updateRackCount = function(slider) {
+      const rackId = slider.id;
+      const count = slider.value;
+      
+      // Fix the ID format for the count display
+      const countDisplayId = rackId.replace('racks', 'rackcount');
+      const countDisplay = document.getElementById(countDisplayId);
+      if (countDisplay) {
+        countDisplay.textContent = count;
+      }
+      
+      // Extract aisle and shelf numbers from the ID
+      const matches = rackId.match(/racks(\d+)shelf(\d+)/);
+      if (matches) {
+        const aisleNum = parseInt(matches[1]);
+        const shelfNum = parseInt(matches[2]);
+        updateRackControls(aisleNum, shelfNum, parseInt(count));
+      }
+    };
+    
+    // Function to generate rack-specific controls
+    function updateRackControls(aisleNum, shelfNum, rackCount) {
+      const container = document.getElementById(`rackControls${aisleNum}shelf${shelfNum}`);
+      if (!container) return;
+      
+      container.innerHTML = '';
+      
+      for (let r = 1; r <= rackCount; r++) {
+        const rackDiv = document.createElement('div');
+        rackDiv.style.cssText = 'margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 5px; border-left: 4px solid #666;';
+        rackDiv.innerHTML = `
+          <div style="font-size: 11px; color: #ccc; font-weight: bold; margin-bottom: 5px;">Rack ${r}:</div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="flex: 1;">
+              <label style="font-size: 9px; color: #aaa;">Left (Aisle):</label>
+              <div class="slider-container">
+                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}left" min="0" max="3" value="0" oninput="updateBoxCount(this)">
+                <span class="box-count" id="countrack${aisleNum}shelf${shelfNum}rack${r}left">0</span>
+              </div>
+            </div>
+            <div style="flex: 1;">
+              <label style="font-size: 9px; color: #aaa;">Right (Wall):</label>
+              <div class="slider-container">
+                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}right" min="0" max="3" value="0" oninput="updateBoxCount(this)">
+                <span class="box-count" id="countrack${aisleNum}shelf${shelfNum}rack${r}right">0</span>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(rackDiv);
+      }
+    }
+    
+    // Function to set all shelves to the same value
+    window.setAllShelves = function(value) {
+      const aisles = parseInt(document.getElementById('aisles').value) || 2;
+      const shelves = parseInt(document.getElementById('shelves').value) || 4;
+      
+      for (let a = 1; a <= aisles; a++) {
+        for (let s = 1; s <= shelves; s++) {
+          // Set left side
+          const leftSlider = document.getElementById(`aisle${a}shelf${s}left`);
+          const leftCountDisplay = document.getElementById(`countaisle${a}shelf${s}left`);
+          if (leftSlider && leftCountDisplay) {
+            leftSlider.value = value;
+            leftCountDisplay.textContent = value;
+          }
+          
+          // Set right side
+          const rightSlider = document.getElementById(`aisle${a}shelf${s}right`);
+          const rightCountDisplay = document.getElementById(`countaisle${a}shelf${s}right`);
+          if (rightSlider && rightCountDisplay) {
+            rightSlider.value = value;
+            rightCountDisplay.textContent = value;
+          }
+        }
+      }
+    };
+    
+    // Function to update shelf controls based on number of aisles and shelves
+    window.updateShelfControls = function() {
+      const aisles = parseInt(document.getElementById('aisles').value) || 2;
+      const shelves = parseInt(document.getElementById('shelves').value) || 4;
+      const container = document.getElementById('shelfInputs');
+      container.innerHTML = '';
+      
+      for (let a = 1; a <= aisles; a++) {
+        // Add aisle header
+        const aisleHeader = document.createElement('div');
+        aisleHeader.style.cssText = 'margin: 15px 0 8px 0; padding: 5px; background: rgba(255,165,0,0.2); border-radius: 3px; font-weight: bold; color: #ffa500;';
+        aisleHeader.textContent = `Aisle ${a}`;
+        container.appendChild(aisleHeader);
+        
+        for (let s = 1; s <= shelves; s++) {
+          const div = document.createElement('div');
+          div.className = 'shelf-slider';
+          div.style.cssText = 'border-left: 4px solid #666; padding-left: 10px; margin: 10px 0;';
+          div.innerHTML = `
+            <label style="font-weight: bold; color: #ccc; font-size: 14px;">Shelf ${s} (Level ${s}):</label>
+            <div style="margin-left: 15px;">
+              <div style="margin: 5px 0;">
+                <label style="font-size: 10px; color: #ccc;">Number of Racks:</label>
+                <div class="slider-container">
+                  <input type="range" class="slider" id="racks${a}shelf${s}" min="0" max="2" value="1" oninput="updateRackCount(this)">
+                  <span class="box-count" id="rackcount${a}shelf${s}">1</span>
+                </div>
+              </div>
+              <div style="margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 3px;">
+                <label style="font-size: 11px; color: #ccc; font-weight: bold;">Boxes per Rack:</label>
+                <div id="rackControls${a}shelf${s}" style="margin-top: 5px;">
+                  <!-- Rack controls will be generated dynamically -->
+                </div>
+              </div>
+            </div>
+          `;
+          container.appendChild(div);
+          
+          // Generate rack controls for this shelf
+          updateRackControls(a, s, 1);
+        }
+      }
+    };
+    
+    // Make generateWarehouse function global
+    window.generateWarehouse = function() {
+      const aisles = parseInt(document.getElementById('aisles').value) || 2;
+      const aisleWidth = parseFloat(document.getElementById('aisleWidth').value) || 6;
+      const aisleLength = parseFloat(document.getElementById('aisleLength').value) || 20;
+      const shelves = parseInt(document.getElementById('shelves').value) || 4;
+      
+      // Get rack counts and box counts for each shelf in each aisle
+      const allShelfData = [];
+      for (let a = 1; a <= aisles; a++) {
+        const aisleData = [];
+        for (let s = 1; s <= shelves; s++) {
+          const rackCount = parseInt(document.getElementById(`racks${a}shelf${s}`)?.value) || 2;
+          const rackData = [];
+          
+          // Get box counts for each rack
+          for (let r = 1; r <= rackCount; r++) {
+            const leftBoxes = parseInt(document.getElementById(`rack${a}shelf${s}rack${r}left`)?.value) || 0;
+            const rightBoxes = parseInt(document.getElementById(`rack${a}shelf${s}rack${r}right`)?.value) || 0;
+            rackData.push({
+              left: leftBoxes,
+              right: rightBoxes
+            });
+          }
+          
+          aisleData.push({ 
+            racks: rackCount,
+            rackData: rackData
+          });
+        }
+        allShelfData.push(aisleData);
+      }
+      
+      makeScene(aisles, aisleWidth, aisleLength, shelves, allShelfData);
+    };
+    
+    // Initialize with default values
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        console.log('Initializing warehouse...');
+        const statusElement = document.getElementById('status');
+        if (statusElement) statusElement.textContent = 'Initializing...';
+        
+        // Wait a bit for Three.js to load
+        setTimeout(() => {
+          try {
+            updateShelfControls();
+            console.log('Controls updated, creating scene...');
+            if (statusElement) statusElement.textContent = 'Creating 3D scene...';
+            
+            // Create a simple default scene structure
+            const defaultShelfData = [];
+            for (let a = 0; a < 2; a++) {
+              const aisleData = [];
+              for (let s = 0; s < 4; s++) {
+                aisleData.push({
+                  racks: 1,
+                  rackData: [
+                    { left: 0, right: 0 }
+                  ]
+                });
+              }
+              defaultShelfData.push(aisleData);
+            }
+            
+            makeScene(2, 6, 20, 4, defaultShelfData);
+            console.log('Scene created successfully');
+            if (statusElement) statusElement.textContent = 'Ready!';
+          } catch (error) {
+            console.error('Error creating scene:', error);
+            if (statusElement) statusElement.textContent = 'Error: ' + error.message;
+            document.getElementById('scene').innerHTML = '<div style="color: white; padding: 20px; text-align: center;"><h2>Error Loading Warehouse</h2><p>' + error.message + '</p><button onclick="location.reload()">Reload Page</button></div>';
+          }
+        }, 100);
+      } catch (error) {
+        console.error('Error initializing warehouse:', error);
+        const statusElement = document.getElementById('status');
+        if (statusElement) statusElement.textContent = 'Error: ' + error.message;
+        document.getElementById('scene').innerHTML = '<div style="color: white; padding: 20px; text-align: center;"><h2>Error Loading Warehouse</h2><p>' + error.message + '</p><button onclick="location.reload()">Reload Page</button></div>';
+      }
+    });
+    
+    // Simple test function to verify Three.js is working
+    window.testThreeJS = function() {
+      try {
+        console.log('Testing Three.js...');
+        
+        // Create a simple test scene
+        const testScene = new THREE.Scene();
+        testScene.background = new THREE.Color(0x0000ff); // Blue background
+        
+        const testCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        testCamera.position.z = 5;
+        
+        const testRenderer = new THREE.WebGLRenderer();
+        testRenderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // Create a simple cube
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const cube = new THREE.Mesh(geometry, material);
+        testScene.add(cube);
+        
+        // Render the scene
+        testRenderer.render(testScene, testCamera);
+        
+        // Add to page
+        const sceneDiv = document.getElementById('scene');
+        sceneDiv.innerHTML = '';
+        sceneDiv.appendChild(testRenderer.domElement);
+        
+        console.log('Test scene created successfully');
+        return true;
+      } catch (error) {
+        console.error('Test scene failed:', error);
+        return false;
+      }
+    };
+  </script>
+</body>
+</html>
