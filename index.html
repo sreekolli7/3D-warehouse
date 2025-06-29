@@ -156,24 +156,6 @@
     <button onclick="generateWarehouse()">Generate Warehouse</button>
     <button onclick="updateShelfControls()" style="background: #666;">Refresh Controls</button>
     <button onclick="testThreeJS()" style="background: #4CAF50;">Test Three.js</button>
-    
-    <!-- Box Color Legend -->
-    <div style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; border: 1px solid #444;">
-      <h4 style="margin: 0 0 8px 0; color: #ffa500; font-size: 12px;">📦 Box Color Coding:</h4>
-      <div style="font-size: 11px; color: #ccc; line-height: 1.4;">
-        <div style="display: flex; align-items: center; margin: 3px 0;">
-          <div style="width: 15px; height: 15px; background: #4CAF50; margin-right: 8px; border-radius: 2px;"></div>
-          <span><strong>Green Boxes</strong> = Left Side (Aisle Side)</span>
-        </div>
-        <div style="display: flex; align-items: center; margin: 3px 0;">
-          <div style="width: 15px; height: 15px; background: #2196F3; margin-right: 8px; border-radius: 2px;"></div>
-          <span><strong>Blue Boxes</strong> = Right Side (Wall Side)</span>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Rack Color Legend -->
-    <!-- Removed rack color coding as requested -->
   </div>
   <script type="module">
     import * as THREE from './three.module.js';
@@ -421,22 +403,27 @@
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, 256, 128);
       
+      // Border
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(2, 2, 252, 124);
+      
       // Generate random barcode pattern
-      const barWidth = 2;
-      const barHeight = 80;
+      const barWidth = 3;
+      const barHeight = 60;
       let x = 20;
       
       // Barcode bars
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < 30; i++) {
         const barThickness = Math.random() > 0.5 ? barWidth : barWidth * 2;
         ctx.fillStyle = Math.random() > 0.3 ? '#000000' : '#ffffff';
-        ctx.fillRect(x, 20, barThickness, barHeight);
+        ctx.fillRect(x, 30, barThickness, barHeight);
         x += barThickness;
       }
       
       // Barcode numbers
       ctx.fillStyle = '#000000';
-      ctx.font = 'bold 12px Arial';
+      ctx.font = 'bold 14px Arial';
       ctx.textAlign = 'center';
       ctx.fillText('123456789', 128, 110);
       
@@ -715,8 +702,10 @@
         // Aisles and shelves
         for (let a = 0; a < aisles; a++) {
           const x = startX + a * aisleSpacing;
-          const shelfBoxes = allShelfBoxes[a] || [3, 3, 3];
-          createAisle(scene, x, 0, 0, aisleLength, aisleWidth, shelves, shelves, shelfBoxes, a + 1);
+          // Get the first shelf data for this aisle (since we only have one shelf per aisle)
+          const shelfData = allShelfBoxes[a] && allShelfBoxes[a][0] ? [allShelfBoxes[a][0]] : [{ racks: 3, rackData: [0, 0, 0] }];
+          console.log(`Aisle ${a + 1} shelf data:`, shelfData);
+          createAisle(scene, x, 0, 0, aisleLength, aisleWidth, 1, 1, shelfData, a + 1);
         }
         
         // Enhanced pallets and boxes along sides
@@ -842,284 +831,92 @@
       floorMarking.position.set(x, 0.01, z);
       group.add(floorMarking);
       
-      // Create shelves on BOTH sides of the aisle
-      // Left side shelves (negative X)
+      // Create ONE shelf on the left side of the aisle
       createSideShelves(group, x - width/2 - shelfDepth/2, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, 'left', aisleNumber, shelfBoxes);
-      
-      // Right side shelves (positive X)
-      createSideShelves(group, x + width/2 + shelfDepth/2, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, 'right', aisleNumber, shelfBoxes);
       
       scene.add(group);
     }
     
     function createSideShelves(group, shelfX, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, side, aisleNumber, shelfBoxes) {
-      // Calculate proper pole height to reach the top shelf
-      const topShelfHeight = 2 + (levels - 1) * 3.5 + 1; // Height of top shelf + extra clearance
-      const poleHeight = topShelfHeight + 1; // Add extra height for structural support
+      console.log('createSideShelves called with:', { shelfBoxes, levels, aisleNumber });
       
-      // Create support poles that adapt to the number of racks per shelf
-      const polePositions = [];
+      // Create one shelf with 3 vertical rack levels
+      const rackLevelHeight = 2.5; // Height between rack levels
+      const topRackY = 7; // Start from a reasonable height
+      const middleRackY = topRackY - rackLevelHeight; // Middle rack
+      const bottomRackY = middleRackY - rackLevelHeight; // Bottom rack closer to ground
       
-      // Get the rack count for this shelf level (default to 1 if not specified)
-      const rackCount = parseInt(document.getElementById(`racks${aisleNumber}shelf${1}`)?.value) || 1;
+      // Use the shelf data directly (one shelf per aisle)
+      const thisShelf = shelfBoxes[0] || { racks: 3, rackData: [0, 0, 0] };
+      const rackCount = thisShelf.racks || 3;
       
-      if (rackCount === 1) {
-        // Single rack - poles at start and end of entire shelf
-        polePositions.push(z - shelfLen/2); // Start pole
-        polePositions.push(z + shelfLen/2); // End pole
-        
-        // Add poles between shelf levels if there are multiple shelves
-        if (levels > 1) {
-          for (let i = 1; i < levels; i++) {
-            const yLevel = 2 + i * 3.5;
-            // Add a pole at the middle of the shelf length for each shelf level
-            polePositions.push(z);
-          }
-        }
-      } else {
-        // Multiple racks - create poles for each rack
-        const rackWidth = shelfLen / rackCount;
-        
-        for (let r = 1; r <= rackCount; r++) {
-          const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
-          const rackEnd = z - shelfLen/2 + r * rackWidth;
-          
-          // Add poles at the start and end of each rack
-          polePositions.push(rackStart); // Start of this rack
-          polePositions.push(rackEnd);   // End of this rack
-        }
-        
-        // Add poles between shelf levels if there are multiple shelves
-        if (levels > 1) {
-          for (let i = 1; i < levels; i++) {
-            const yLevel = 2 + i * 3.5;
-            // Add poles at the middle of each rack for each shelf level
-            for (let r = 1; r <= rackCount; r++) {
-              const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
-              const rackEnd = z - shelfLen/2 + r * rackWidth;
-              const rackCenter = (rackStart + rackEnd) / 2;
-              polePositions.push(rackCenter);
-            }
-          }
-        }
-      }
+      console.log(`Shelf: thisShelf =`, thisShelf, `rackCount = ${rackCount}`);
       
-      // Create poles at calculated positions with proper height
-      for (let i = 0; i < polePositions.length; i++) {
-        const pole = new THREE.Mesh(new THREE.BoxGeometry(0.2, poleHeight, 0.2), postMat);
-        pole.position.set(shelfX, poleHeight / 2, polePositions[i]);
-        pole.castShadow = true;
-        pole.receiveShadow = true;
-        pole.material.transparent = true;
-        pole.material.opacity = 0.6;
-        pole.material.color.setHex(0x2a2a2a);
-        group.add(pole);
-        
-        // Add simple accent strips to poles for better visibility
-        for (let l = 0; l < levels; l++) {
-          const yLevel = 2 + l * 3.5;
-          
-          const accentStrip = new THREE.Mesh(
-            new THREE.BoxGeometry(0.25, 0.1, 0.25),
-            new THREE.MeshStandardMaterial({ 
-              color: 0x666666, // Neutral gray
-              emissive: 0x333333,
-              emissiveIntensity: 0.1
-            })
-          );
-          accentStrip.position.set(shelfX, yLevel + 0.5, polePositions[i]);
-          group.add(accentStrip);
-        }
-      }
+      // Add poles from one end to the other of the shelf
+      const poleHeight = topRackY + 1; // Poles extend just slightly above the top rack
+      const poleStart = z - shelfLen/2;
+      const poleEnd = z + shelfLen/2;
       
-      // Create shelves at each level
-      for (let l = 0; l < levels; l++) {
-        const yLevel = 2 + l * 3.5; // Spacing between levels
-        const shelfData = shelfBoxes[l] || { racks: 2, left: 0, right: 0 };
-        const rackCount = parseInt(document.getElementById(`racks${aisleNumber}shelf${l+1}`)?.value) || 2;
+      // Create poles at start and end of the shelf
+      const startPole = new THREE.Mesh(new THREE.BoxGeometry(0.2, poleHeight, 0.2), postMat);
+      startPole.position.set(shelfX, poleHeight / 2, poleStart);
+      startPole.castShadow = true;
+      startPole.receiveShadow = true;
+      group.add(startPole);
+      
+      const endPole = new THREE.Mesh(new THREE.BoxGeometry(0.2, poleHeight, 0.2), postMat);
+      endPole.position.set(shelfX, poleHeight / 2, poleEnd);
+      endPole.castShadow = true;
+      endPole.receiveShadow = true;
+      group.add(endPole);
+      
+      // Create 3 vertical rack levels (top, middle, bottom) - evenly distributed
+      const rackPositions = [topRackY, middleRackY, bottomRackY];
+      for (let r = 1; r <= rackCount; r++) {
+        const rackY = rackPositions[r-1]; // Use predefined positions for even spacing
         
-        if (rackCount === 1) {
-          // Single rack - create one continuous shelf
-          const shelfMat = new THREE.MeshStandardMaterial({ 
-            color: 0x7a7a7a, // Neutral gray
-            metalness: 0.6, 
-            roughness: 0.3
-          });
-          const shelf = new THREE.Mesh(new THREE.BoxGeometry(shelfDepth - 0.4, 0.25, shelfLen - 0.4), shelfMat);
-          shelf.position.set(shelfX, yLevel, z);
-          shelf.castShadow = true;
-          shelf.receiveShadow = true;
-          group.add(shelf);
-        } else {
-          // Multiple racks - create separate shelf segments with dividers
-          const rackWidth = shelfLen / rackCount;
-          
-          for (let r = 1; r <= rackCount; r++) {
-            const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
-            const rackEnd = z - shelfLen/2 + r * rackWidth;
-            const rackCenter = (rackStart + rackEnd) / 2;
-            
-            // Create individual shelf segment for this rack
-            const shelfMat = new THREE.MeshStandardMaterial({ 
-              color: 0x7a7a7a, // Neutral gray
-              metalness: 0.6, 
-              roughness: 0.3
-            });
-            const shelfSegment = new THREE.Mesh(
-              new THREE.BoxGeometry(shelfDepth - 0.4, 0.25, rackWidth - 0.4), 
-              shelfMat
-            );
-            shelfSegment.position.set(shelfX, yLevel, rackCenter);
-            shelfSegment.castShadow = true;
-            shelfSegment.receiveShadow = true;
-            group.add(shelfSegment);
-            
-            // Add rack divider (except for the last rack)
-            if (r < rackCount) {
-              const divider = new THREE.Mesh(
-                new THREE.BoxGeometry(shelfDepth - 0.2, 0.8, 0.3),
-                new THREE.MeshStandardMaterial({ 
-                  color: 0x222222, // Very dark gray
-                  metalness: 0.9,
-                  roughness: 0.1
-                })
-              );
-              divider.position.set(shelfX, yLevel + 0.4, rackEnd);
-              group.add(divider);
-              
-              // Add a second divider for extra visibility
-              const divider2 = new THREE.Mesh(
-                new THREE.BoxGeometry(shelfDepth - 0.2, 0.4, 0.1),
-                new THREE.MeshStandardMaterial({ 
-                  color: 0x000000, // Black
-                  metalness: 1.0,
-                  roughness: 0.0
-                })
-              );
-              divider2.position.set(shelfX, yLevel + 0.8, rackEnd);
-              group.add(divider2);
-            }
-          }
-        }
-        
-        // Add rack number labels
-        for (let r = 1; r <= rackCount; r++) {
-          const rackWidth = shelfLen / rackCount;
-          const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
-          const rackEnd = z - shelfLen/2 + r * rackWidth;
-          const rackCenter = (rackStart + rackEnd) / 2;
-          
-          const rackLabel = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.8, 0.4),
-            new THREE.MeshStandardMaterial({ 
-              map: createLargeTextTexture(`R${r}`, '#ffffff', '#000000', 'small'),
-              transparent: true,
-              opacity: 0.9
-            })
-          );
-          rackLabel.position.set(shelfX, yLevel + 0.5, rackCenter);
-          group.add(rackLabel);
-        }
-        
-        // Add level label with neutral color
-        const levelLabel = new THREE.Mesh(
-          new THREE.PlaneGeometry(1.5, 0.8),
-          new THREE.MeshStandardMaterial({ 
-            map: createLargeTextTexture(`${l+1}`, '#666666', '#ffffff'),
-            transparent: true,
-            opacity: 0.9
-          })
+        // Create the rack shelf at this level
+        const rackShelf = new THREE.Mesh(
+          new THREE.BoxGeometry(shelfDepth, 0.25, shelfLen), 
+          shelfMat
         );
-        levelLabel.position.set(shelfX, yLevel + 0.4, z - shelfLen/2 - 1.5);
-        group.add(levelLabel);
+        rackShelf.position.set(shelfX, rackY, z);
+        rackShelf.castShadow = true;
+        rackShelf.receiveShadow = true;
+        group.add(rackShelf);
         
-        // Add informative box count labels for each rack
-        for (let r = 1; r <= rackCount; r++) {
-          const leftBoxes = parseInt(document.getElementById(`rack${aisleNumber}shelf${l+1}rack${r}left`)?.value) || 0;
-          const rightBoxes = parseInt(document.getElementById(`rack${aisleNumber}shelf${l+1}rack${r}right`)?.value) || 0;
-          const totalBoxes = leftBoxes + rightBoxes;
+        // Get user box count for this rack level (default 0)
+        const boxCount = thisShelf.rackData[r-1] || 0;
+        console.log(`  Rack ${r} (${r === 1 ? 'top' : r === 2 ? 'middle' : 'bottom'}): boxCount = ${boxCount}`);
+        
+        if (boxCount > 0) {
+          // Distribute boxes across the shelf length - only 3 boxes max
+          const maxBoxes = Math.min(boxCount, 3);
+          const boxWidth = 2.0; // Width of each box
+          const boxSpacing = 0.5; // Space between boxes
+          const totalBoxWidth = maxBoxes * boxWidth + (maxBoxes - 1) * boxSpacing;
+          const startX = -totalBoxWidth / 2;
           
-          // Calculate position for this rack's label
-          const rackWidth = shelfLen / rackCount;
-          const rackCenter = z - shelfLen/2 + (r - 0.5) * rackWidth;
-          
-          // Create informative label showing rack and box count
-          const boxInfoLabel = new THREE.Mesh(
-            new THREE.PlaneGeometry(1.2, 0.5),
-            new THREE.MeshStandardMaterial({ 
-              map: createLargeTextTexture(`R${r}: ${totalBoxes} boxes`, '#666666', '#ffffff', 'small'),
-              transparent: true,
-              opacity: 0.9
-            })
-          );
-          boxInfoLabel.position.set(shelfX, yLevel + 1.2, rackCenter);
-          group.add(boxInfoLabel);
-          
-          // Add detailed breakdown if there are boxes
-          if (totalBoxes > 0) {
-            const detailLabel = new THREE.Mesh(
-              new THREE.PlaneGeometry(1.0, 0.4),
-              new THREE.MeshStandardMaterial({ 
-                map: createLargeTextTexture(`L:${leftBoxes} R:${rightBoxes}`, '#666666', '#ffffff', 'small'),
-                transparent: true,
-                opacity: 0.8
-              })
-            );
-            detailLabel.position.set(shelfX, yLevel + 1.6, rackCenter);
-            group.add(detailLabel);
-          }
-          
-          // Create boxes for this rack
-          if (leftBoxes > 0 || rightBoxes > 0) {
-            // Calculate rack boundaries
-            const rackStart = z - shelfLen/2 + (r - 1) * rackWidth;
-            const rackEnd = z - shelfLen/2 + r * rackWidth;
-            const rackCenter = (rackStart + rackEnd) / 2;
-            
-            // Position left side boxes (aisle side) in this rack
-            if (leftBoxes > 0) {
-              console.log(`Creating ${leftBoxes} left boxes for rack ${r}`);
-              for (let b = 0; b < leftBoxes; b++) {
-                const box = createCleanBox('left');
-                // Use fixed spacing to ensure boxes don't overlap
-                const boxSpacing = 2.0; // Fixed spacing between boxes
-                const startZ = rackStart + 2.0; // Start position
-                const boxZ = startZ + b * boxSpacing;
-                console.log(`Left box ${b + 1} positioned at Z: ${boxZ}`);
-                box.position.set(shelfX, yLevel + 0.8, boxZ);
-                box.castShadow = true;
-                box.receiveShadow = true;
-                group.add(box);
-              }
-            }
-            
-            // Position right side boxes (wall side) in this rack
-            if (rightBoxes > 0) {
-              console.log(`Creating ${rightBoxes} right boxes for rack ${r}`);
-              for (let b = 0; b < rightBoxes; b++) {
-                const box = createCleanBox('right');
-                // Use fixed spacing to ensure boxes don't overlap
-                const boxSpacing = 2.0; // Fixed spacing between boxes
-                const startZ = rackCenter + 2.0; // Start position for right side
-                const boxZ = startZ + b * boxSpacing;
-                console.log(`Right box ${b + 1} positioned at Z: ${boxZ}`);
-                box.position.set(shelfX, yLevel + 0.8, boxZ);
-                box.castShadow = true;
-                box.receiveShadow = true;
-                group.add(box);
-              }
-            }
+          for (let b = 0; b < maxBoxes; b++) {
+            const box = createSimpleBox();
+            const boxZ = startX + b * (boxWidth + boxSpacing) + boxWidth / 2;
+            box.position.set(shelfX, rackY + 1.2, z + boxZ); // Adjusted Y position for larger boxes
+            box.castShadow = true;
+            box.receiveShadow = true;
+            group.add(box);
           }
         }
       }
     }
     
     function createSimpleBox() {
+      // Bigger box size so only 3 fit per rack
       const box = new THREE.Mesh(
-        new THREE.BoxGeometry(1.2, 0.8, 1.4), 
+        new THREE.BoxGeometry(1.8, 1.2, 2.0), // Increased size significantly
         new THREE.MeshStandardMaterial({ 
           color: 0x8b4513, 
-          roughness: 0.8
+          roughness: 0.8,
+          map: createBarcodeTexture() // Add barcode texture
         })
       );
       return box;
@@ -1482,6 +1279,8 @@
       const rackId = slider.id;
       const count = slider.value;
       
+      console.log('updateRackCount called:', { rackId, count });
+      
       // Fix the ID format for the count display
       const countDisplayId = rackId.replace('racks', 'rackcount');
       const countDisplay = document.getElementById(countDisplayId);
@@ -1494,17 +1293,23 @@
       if (matches) {
         const aisleNum = parseInt(matches[1]);
         const shelfNum = parseInt(matches[2]);
+        console.log('Updating rack controls for:', { aisleNum, shelfNum, count });
         updateRackControls(aisleNum, shelfNum, parseInt(count));
       }
     };
     
     // Function to generate rack-specific controls
     function updateRackControls(aisleNum, shelfNum, rackCount) {
+      console.log('updateRackControls called:', { aisleNum, shelfNum, rackCount });
+      
       const container = document.getElementById(`rackControls${aisleNum}shelf${shelfNum}`);
-      if (!container) return;
-      
+      if (!container) {
+        console.error('Container not found:', `rackControls${aisleNum}shelf${shelfNum}`);
+        return;
+      }
+
       container.innerHTML = '';
-      
+
       for (let r = 1; r <= rackCount; r++) {
         const rackDiv = document.createElement('div');
         rackDiv.style.cssText = 'margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 5px; border-left: 4px solid #666;';
@@ -1512,23 +1317,18 @@
           <div style="font-size: 11px; color: #ccc; font-weight: bold; margin-bottom: 5px;">Rack ${r}:</div>
           <div style="display: flex; gap: 10px; align-items: center;">
             <div style="flex: 1;">
-              <label style="font-size: 9px; color: #aaa;">Left (Aisle):</label>
+              <label style="font-size: 9px; color: #aaa;">Boxes:</label>
               <div class="slider-container">
-                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}left" min="0" max="3" value="0" oninput="updateBoxCount(this)">
-                <span class="box-count" id="countrack${aisleNum}shelf${shelfNum}rack${r}left">0</span>
-              </div>
-            </div>
-            <div style="flex: 1;">
-              <label style="font-size: 9px; color: #aaa;">Right (Wall):</label>
-              <div class="slider-container">
-                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}right" min="0" max="3" value="0" oninput="updateBoxCount(this)">
-                <span class="box-count" id="countrack${aisleNum}shelf${shelfNum}rack${r}right">0</span>
+                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}" min="0" max="3" value="0" oninput="updateBoxCount(this)">
+                <span class="box-count" id="countrack${aisleNum}shelf${shelfNum}rack${r}">0</span>
               </div>
             </div>
           </div>
         `;
         container.appendChild(rackDiv);
       }
+      
+      console.log(`Generated ${rackCount} rack controls for aisle ${aisleNum}, shelf ${shelfNum}`);
     }
     
     // Function to set all shelves to the same value
@@ -1560,7 +1360,6 @@
     // Function to update shelf controls based on number of aisles and shelves
     window.updateShelfControls = function() {
       const aisles = parseInt(document.getElementById('aisles').value) || 2;
-      const shelves = parseInt(document.getElementById('shelves').value) || 4;
       const container = document.getElementById('shelfInputs');
       container.innerHTML = '';
       
@@ -1571,33 +1370,33 @@
         aisleHeader.textContent = `Aisle ${a}`;
         container.appendChild(aisleHeader);
         
-        for (let s = 1; s <= shelves; s++) {
-          const div = document.createElement('div');
-          div.className = 'shelf-slider';
-          div.style.cssText = 'border-left: 4px solid #666; padding-left: 10px; margin: 10px 0;';
-          div.innerHTML = `
-            <label style="font-weight: bold; color: #ccc; font-size: 14px;">Shelf ${s} (Level ${s}):</label>
-            <div style="margin-left: 15px;">
-              <div style="margin: 5px 0;">
-                <label style="font-size: 10px; color: #ccc;">Number of Racks:</label>
-                <div class="slider-container">
-                  <input type="range" class="slider" id="racks${a}shelf${s}" min="0" max="2" value="1" oninput="updateRackCount(this)">
-                  <span class="box-count" id="rackcount${a}shelf${s}">1</span>
-                </div>
-              </div>
-              <div style="margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 3px;">
-                <label style="font-size: 11px; color: #ccc; font-weight: bold;">Boxes per Rack:</label>
-                <div id="rackControls${a}shelf${s}" style="margin-top: 5px;">
-                  <!-- Rack controls will be generated dynamically -->
-                </div>
+        // Only create one shelf per aisle
+        const s = 1;
+        const div = document.createElement('div');
+        div.className = 'shelf-slider';
+        div.style.cssText = 'border-left: 4px solid #666; padding-left: 10px; margin: 10px 0;';
+        div.innerHTML = `
+          <label style="font-weight: bold; color: #ccc; font-size: 14px;">Shelf:</label>
+          <div style="margin-left: 15px;">
+            <div style="margin: 5px 0;">
+              <label style="font-size: 10px; color: #ccc;">Number of Racks:</label>
+              <div class="slider-container">
+                <input type="range" class="slider" id="racks${a}shelf${s}" min="1" max="3" value="3" oninput="updateRackCount(this)">
+                <span class="box-count" id="rackcount${a}shelf${s}">3</span>
               </div>
             </div>
-          `;
-          container.appendChild(div);
-          
-          // Generate rack controls for this shelf
-          updateRackControls(a, s, 1);
-        }
+            <div style="margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 3px;">
+              <label style="font-size: 11px; color: #ccc; font-weight: bold;">Boxes per Rack:</label>
+              <div id="rackControls${a}shelf${s}" style="margin-top: 5px;">
+                <!-- Rack controls will be generated dynamically -->
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+        
+        // Generate rack controls for this shelf (use the default value of 3)
+        updateRackControls(a, s, 3);
       }
     };
     
@@ -1608,33 +1407,33 @@
       const aisleLength = parseFloat(document.getElementById('aisleLength').value) || 20;
       const shelves = parseInt(document.getElementById('shelves').value) || 4;
       
-      // Get rack counts and box counts for each shelf in each aisle
+      console.log('Generating warehouse with:', { aisles, aisleWidth, aisleLength, shelves });
+      
+      // Get rack counts and box counts for each aisle (one shelf per aisle)
       const allShelfData = [];
       for (let a = 1; a <= aisles; a++) {
         const aisleData = [];
-        for (let s = 1; s <= shelves; s++) {
-          const rackCount = parseInt(document.getElementById(`racks${a}shelf${s}`)?.value) || 2;
-          const rackData = [];
-          
-          // Get box counts for each rack
-          for (let r = 1; r <= rackCount; r++) {
-            const leftBoxes = parseInt(document.getElementById(`rack${a}shelf${s}rack${r}left`)?.value) || 0;
-            const rightBoxes = parseInt(document.getElementById(`rack${a}shelf${s}rack${r}right`)?.value) || 0;
-            rackData.push({
-              left: leftBoxes,
-              right: rightBoxes
-            });
-          }
-          
-          aisleData.push({ 
-            racks: rackCount,
-            rackData: rackData
-          });
+        // Only get data for the first shelf since we only have one shelf per aisle
+        const s = 1;
+        const rackCount = parseInt(document.getElementById(`racks${a}shelf${s}`)?.value) || 3;
+        console.log(`Aisle ${a}, Shelf ${s}: rackCount = ${rackCount}`);
+        
+        const rackData = [];
+        // Get box counts for each rack
+        for (let r = 1; r <= rackCount; r++) {
+          const boxCount = parseInt(document.getElementById(`rack${a}shelf${s}rack${r}`)?.value) || 0;
+          rackData.push(boxCount);
+          console.log(`  Rack ${r}: boxCount = ${boxCount}`);
         }
+        aisleData.push({ 
+          racks: rackCount,
+          rackData: rackData
+        });
         allShelfData.push(aisleData);
       }
       
-      makeScene(aisles, aisleWidth, aisleLength, shelves, allShelfData);
+      console.log('Final shelf data:', allShelfData);
+      makeScene(aisles, aisleWidth, aisleLength, 1, allShelfData); // Pass 1 for shelves since we only have one per aisle
     };
     
     // Initialize with default values
@@ -1651,22 +1450,19 @@
             console.log('Controls updated, creating scene...');
             if (statusElement) statusElement.textContent = 'Creating 3D scene...';
             
-            // Create a simple default scene structure
+            // Create a simple default scene structure (one shelf per aisle)
             const defaultShelfData = [];
             for (let a = 0; a < 2; a++) {
               const aisleData = [];
-              for (let s = 0; s < 4; s++) {
-                aisleData.push({
-                  racks: 1,
-                  rackData: [
-                    { left: 0, right: 0 }
-                  ]
-                });
-              }
+              // Only one shelf per aisle
+              aisleData.push({
+                racks: 3,
+                rackData: [0, 0, 0]
+              });
               defaultShelfData.push(aisleData);
             }
             
-            makeScene(2, 6, 20, 4, defaultShelfData);
+            makeScene(2, 6, 20, 1, defaultShelfData); // Pass 1 for shelves since we only have one per aisle
             console.log('Scene created successfully');
             if (statusElement) statusElement.textContent = 'Ready!';
           } catch (error) {
