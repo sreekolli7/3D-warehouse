@@ -890,16 +890,20 @@
         console.log(`  Rack ${r} (${r === 1 ? 'top' : r === 2 ? 'middle' : 'bottom'}): boxCount = ${boxCount}`);
         
         if (boxCount > 0) {
-          // Distribute boxes across the shelf length - only 3 boxes max
-          const maxBoxes = Math.min(boxCount, 3);
+          // Distribute boxes across the shelf length - up to 6 boxes
+          const maxBoxes = boxCount; // Remove the hardcoded limit of 3
           const boxWidth = 2.0; // Width of each box
-          const boxSpacing = 0.5; // Space between boxes
-          const totalBoxWidth = maxBoxes * boxWidth + (maxBoxes - 1) * boxSpacing;
-          const startX = -totalBoxWidth / 2;
+          const rackWidth = 12.0; // Increased rack width for better spacing
+          const minSpacing = 1.0; // Minimum space between boxes
+          const totalBoxWidth = maxBoxes * boxWidth;
+          const totalSpacing = (maxBoxes - 1) * minSpacing;
+          const totalNeeded = totalBoxWidth + totalSpacing;
+          const boxSpacing = minSpacing; // Use minimum spacing
+          const startX = -totalNeeded / 2 + boxWidth / 2;
           
           for (let b = 0; b < maxBoxes; b++) {
             const box = createSimpleBox();
-            const boxZ = startX + b * (boxWidth + boxSpacing) + boxWidth / 2;
+            const boxZ = startX + b * (boxWidth + boxSpacing);
             box.position.set(shelfX, rackY + 1.2, z + boxZ); // Adjusted Y position for larger boxes
             box.castShadow = true;
             box.receiveShadow = true;
@@ -1319,7 +1323,7 @@
             <div style="flex: 1;">
               <label style="font-size: 9px; color: #aaa;">Boxes:</label>
               <div class="slider-container">
-                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}" min="0" max="3" value="0" oninput="updateBoxCount(this)">
+                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}" min="0" max="6" value="0" oninput="updateBoxCount(this)">
                 <span class="box-count" id="countrack${aisleNum}shelf${shelfNum}rack${r}">0</span>
               </div>
             </div>

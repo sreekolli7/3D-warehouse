@@ -50,7 +50,7 @@ function renderShelves(aisleIdx, count, container) {
       <label>Depth (m):     <input name="aisle${aisleIdx}Shelf${j}Width"  type="number" value="0.5"  step="0.1"></label>
       <label>Length (m):    <input name="aisle${aisleIdx}Shelf${j}Length" type="number" value="10"   step="0.1"></label>
       <label>Thickness (m): <input name="aisle${aisleIdx}Shelf${j}Height" type="number" value="0.2"  step="0.01"></label>
-      <label>Boxes (1–6):   <input name="aisle${aisleIdx}Shelf${j}Boxes"  type="number" min="1" max="6" value="2"></label>
+      <label>Boxes (1–3):   <input name="aisle${aisleIdx}Shelf${j}Boxes"  type="number" min="1" max="3" value="2"></label>
       <div id="boxes-${aisleIdx}-${j}"></div>`;
     container.appendChild(card);
     const inp = card.querySelector(`[name="aisle${aisleIdx}Shelf${j}Boxes"]`);
@@ -207,7 +207,7 @@ async function buildScene(cfg) {
         const boxDepth = Math.min(b.length, avail/sh.boxes.length - padZ); // Distribute boxes evenly
         
         const cz = -avail/2 + boxDepth/2 + k*(boxDepth + padZ);
-        const cy = by + boardTh/2 + 0.01 + boxHeight/2; // Box bottom sits exactly on mesh
+        const cy = by + boardTh/2 + boxHeight/2; // Boxes sit directly on shelf surface
         const crate = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth), crateMat);
         crate.position.set(xOff, cy, cz);
         crate.castShadow = crate.receiveShadow = true;
