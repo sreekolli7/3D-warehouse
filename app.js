@@ -182,8 +182,21 @@ async function buildScene(cfg) {
     const Ys = [ boardTh/2 ];
     for (let j=1; j<shelfCount; j++) {
       const prevBoxes = aisle.shelves[j-1].boxes;
-      const maxH = prevBoxes.length ? Math.max(...prevBoxes.map(b=>b.height)) : 0;
-      Ys.push(Ys[j-1] + boardTh + maxH + gapY);
+      let maxStackHeight = 0;
+      
+      if (prevBoxes.length > 0) {
+        // Calculate the height of the tallest stack
+        const boxHeight = Math.min(Math.max(...prevBoxes.map(b => b.height)), 1.5);
+        if (prevBoxes.length <= 3) {
+          maxStackHeight = boxHeight;
+        } else {
+          // For more than 3 boxes, calculate stack height
+          const stackLevels = Math.ceil((prevBoxes.length - 3) / 3) + 1;
+          maxStackHeight = boxHeight * stackLevels;
+        }
+      }
+      
+      Ys.push(Ys[j-1] + boardTh + maxStackHeight + gapY);
     }
 
     aisle.shelves.forEach((sh,j) => {
@@ -200,16 +213,35 @@ async function buildScene(cfg) {
       // crates
       const padZ = 0.05;
       const avail = sh.length - 2*padZ;
+      
+      // Intelligent box positioning with stacking
       sh.boxes.forEach((b,k) => {
         // Calculate box dimensions to better fill available space
         const boxWidth = Math.min(b.width, sh.width - 0.1); // Box width limited by shelf width
         const boxHeight = Math.min(b.height, 1.5); // Reasonable max height
-        const boxDepth = Math.min(b.length, avail/sh.boxes.length - padZ); // Distribute boxes evenly
+        const boxDepth = Math.min(b.length, avail/3 - padZ); // Base depth for 3 boxes side by side
         
-        const cz = -avail/2 + boxDepth/2 + k*(boxDepth + padZ);
-        const cy = by + boardTh/2 + 0.01 + boxHeight/2; // Box bottom sits exactly on mesh
+        let cx, cy, cz;
+        
+        if (k < 3) {
+          // First 3 boxes go side by side
+          const spacing = avail / 3;
+          cz = -avail/2 + spacing/2 + k * spacing;
+          cx = xOff;
+          cy = by + boardTh/2 + 0.02 + boxHeight/2; // Position on wire mesh surface
+        } else {
+          // Boxes 4+ get stacked on top of the first 3
+          const baseIndex = (k - 3) % 3; // Which base box to stack on (0, 1, or 2)
+          const stackLevel = Math.floor((k - 3) / 3); // Which level in the stack
+          
+          const spacing = avail / 3;
+          cz = -avail/2 + spacing/2 + baseIndex * spacing;
+          cx = xOff;
+          cy = by + boardTh/2 + 0.02 + boxHeight/2 + (stackLevel + 1) * boxHeight;
+        }
+        
         const crate = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth), crateMat);
-        crate.position.set(xOff, cy, cz);
+        crate.position.set(cx, cy, cz);
         crate.castShadow = crate.receiveShadow = true;
         scene.add(crate);
         
@@ -219,7 +251,7 @@ async function buildScene(cfg) {
           new THREE.PlaneGeometry(boxWidth * 0.8, boxHeight * 0.3),
           new THREE.MeshBasicMaterial({ map: barcodeTex, side: THREE.DoubleSide })
         );
-        label.position.set(xOff, cy, cz + boxDepth/2 + 0.01);
+        label.position.set(cx, cy, cz + boxDepth/2 + 0.01);
         scene.add(label);
       });
       // bottom poles

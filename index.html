@@ -840,8 +840,8 @@
       console.log('createSideShelves called with:', { shelfBoxes, levels, aisleNumber });
       
       // Create one shelf with 3 vertical rack levels
-      const rackLevelHeight = 2.5; // Height between rack levels
-      const topRackY = 7; // Start from a reasonable height
+      const rackLevelHeight = shelfLength / 3; // Use shelfLength to determine rack height
+      const topRackY = shelfLength - 1; // Top rack position based on shelf length
       const middleRackY = topRackY - rackLevelHeight; // Middle rack
       const bottomRackY = middleRackY - rackLevelHeight; // Bottom rack closer to ground
       
@@ -852,7 +852,7 @@
       console.log(`Shelf: thisShelf =`, thisShelf, `rackCount = ${rackCount}`);
       
       // Add poles from one end to the other of the shelf
-      const poleHeight = topRackY + 1; // Poles extend just slightly above the top rack
+      const poleHeight = shelfLength; // Poles extend to the full shelf length (height)
       const poleStart = z - shelfLen/2;
       const poleEnd = z + shelfLen/2;
       
@@ -889,24 +889,61 @@
         console.log(`  Rack ${r} (${r === 1 ? 'top' : r === 2 ? 'middle' : 'bottom'}): boxCount = ${boxCount}`);
         
         if (boxCount > 0) {
-          // Distribute boxes across the shelf length - up to 6 boxes
+          // Distribute boxes across the shelf width - up to 6 boxes
           const maxBoxes = boxCount; // Remove the hardcoded limit of 3
           const boxWidth = 2.0; // Width of each box
-          const rackWidth = shelfWidth; // Use the shelf width parameter
+          const boxHeight = 1.2; // Height of each box
+          const rackWidth = shelfWidth; // Use the shelf width parameter for X-axis
           const minSpacing = 1.0; // Minimum space between boxes
+          
+          // Calculate if we can fit all boxes side by side
           const totalBoxWidth = maxBoxes * boxWidth;
           const totalSpacing = (maxBoxes - 1) * minSpacing;
           const totalNeeded = totalBoxWidth + totalSpacing;
-          const boxSpacing = minSpacing; // Use minimum spacing
-          const startX = -totalNeeded / 2 + boxWidth / 2;
           
-          for (let b = 0; b < maxBoxes; b++) {
-            const box = createSimpleBox();
-            const boxZ = startX + b * (boxWidth + boxSpacing);
-            box.position.set(shelfX, rackY + 1.2, z + boxZ); // Adjusted Y position for larger boxes
-            box.castShadow = true;
-            box.receiveShadow = true;
-            group.add(box);
+          // Determine if we need to stack (if total needed exceeds rack width)
+          const needsStacking = totalNeeded > rackWidth;
+          
+          if (needsStacking) {
+            // Stack boxes when there's not enough space
+            const boxesPerRow = 3; // Maximum 3 boxes per row
+            const numRows = Math.ceil(maxBoxes / boxesPerRow);
+            
+            const rowBoxWidth = boxesPerRow * boxWidth;
+            const rowSpacing = (boxesPerRow - 1) * minSpacing;
+            const rowTotalNeeded = rowBoxWidth + rowSpacing;
+            const startX = -rowTotalNeeded / 2 + boxWidth / 2;
+            
+            for (let b = 0; b < maxBoxes; b++) {
+              const box = createSimpleBox();
+              const rowIndex = Math.floor(b / 3); // Which row (0 = bottom, 1 = top)
+              const colIndex = b % 3; // Which column in the row (0, 1, 2)
+              
+              const boxX = startX + colIndex * (boxWidth + minSpacing);
+              const boxY = rackY + 1.2 + (rowIndex * (boxHeight + 0.3)); // Increased gap between stacked rows
+              
+              box.position.set(shelfX + boxX, boxY, z);
+              box.castShadow = true;
+              box.receiveShadow = true;
+              group.add(box);
+            }
+          } else {
+            // Place all boxes side by side with intelligent spacing
+            const availableSpace = rackWidth - totalBoxWidth;
+            const extraSpacing = availableSpace / (maxBoxes - 1); // Distribute extra space evenly
+            const finalSpacing = minSpacing + extraSpacing;
+            
+            const startX = -rackWidth / 2 + boxWidth / 2;
+            
+            for (let b = 0; b < maxBoxes; b++) {
+              const box = createSimpleBox();
+              const boxX = startX + b * (boxWidth + finalSpacing);
+              
+              box.position.set(shelfX + boxX, rackY + 1.2, z);
+              box.castShadow = true;
+              box.receiveShadow = true;
+              group.add(box);
+            }
           }
         }
       }
@@ -1322,7 +1359,7 @@
             <div style="flex: 1;">
               <label style="font-size: 9px; color: #aaa;">Boxes:</label>
               <div class="slider-container">
-                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}" min="0" max="4" value="0" oninput="updateBoxCount(this)">
+                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}" min="0" max="6" value="0" oninput="updateBoxCount(this)">
                 <span class="box-count" id="countrack${aisleNum}shelf${shelfNum}rack${r}">0</span>
               </div>
             </div>
