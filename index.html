@@ -145,9 +145,8 @@
     <p style="color: #ffa500; font-size: 12px;">Status: <span id="status">Loading...</span></p>
     
     <label>Number of Aisles: <input type="number" id="aisles" value="2" min="1" max="5" onchange="updateShelfControls()"></label>
-    <label>Aisle Width (m): <input type="number" id="aisleWidth" value="6" min="4" max="12" step="0.5"></label>
-    <label>Aisle Length (m): <input type="number" id="aisleLength" value="20" min="15" max="30" step="1"></label>
-    <label>Shelves per Aisle: <input type="number" id="shelves" value="4" min="1" max="5" onchange="updateShelfControls()"></label>
+    <label>Shelf Width (m): <input type="number" id="shelfWidth" value="12" min="8" max="20" step="0.5"></label>
+    <label>Shelf Length (m): <input type="number" id="shelfLength" value="8" min="6" max="15" step="0.5"></label>
     
     <div id="shelfInputs">
       <!-- Shelf controls will be generated dynamically -->
@@ -494,9 +493,9 @@
       return new THREE.CanvasTexture(canvas);
     }
     
-    function makeScene(aisles = 2, aisleWidth = 6, aisleLength = 16, shelves = 4, allShelfBoxes = [[{left: 0, right: 0}, {left: 0, right: 0}, {left: 0, right: 0}], [{left: 0, right: 0}, {left: 0, right: 0}, {left: 0, right: 0}]]) {
+    function makeScene(aisles = 2, aisleWidth = 6, aisleLength = 16, shelves = 4, allShelfBoxes = [[{left: 0, right: 0}, {left: 0, right: 0}, {left: 0, right: 0}], [{left: 0, right: 0}, {left: 0, right: 0}, {left: 0, right: 0}]], shelfWidth = 12, shelfLength = 8) {
       try {
-        console.log('Starting makeScene with parameters:', { aisles, aisleWidth, aisleLength, shelves, allShelfBoxes });
+        console.log('Starting makeScene with parameters:', { aisles, aisleWidth, aisleLength, shelves, allShelfBoxes, shelfWidth, shelfLength });
         
         // Check if Three.js is loaded
         if (typeof THREE === 'undefined') {
@@ -705,7 +704,7 @@
           // Get the first shelf data for this aisle (since we only have one shelf per aisle)
           const shelfData = allShelfBoxes[a] && allShelfBoxes[a][0] ? [allShelfBoxes[a][0]] : [{ racks: 3, rackData: [0, 0, 0] }];
           console.log(`Aisle ${a + 1} shelf data:`, shelfData);
-          createAisle(scene, x, 0, 0, aisleLength, aisleWidth, 1, 1, shelfData, a + 1);
+          createAisle(scene, x, 0, 0, shelfLength, aisleWidth, 1, 1, shelfData, a + 1, shelfWidth, shelfLength);
         }
         
         // Enhanced pallets and boxes along sides
@@ -790,7 +789,7 @@
       }
     }
     
-    function createAisle(scene, x, y, z, length, width, shelfCount, levels, shelfBoxes, aisleNumber) {
+    function createAisle(scene, x, y, z, length, width, shelfCount, levels, shelfBoxes, aisleNumber, shelfWidth, shelfLength) {
       const group = new THREE.Group();
       const shelfLen = length;
       const shelfDepth = 1.5; // Reduced shelf depth for better box visibility
@@ -832,12 +831,12 @@
       group.add(floorMarking);
       
       // Create ONE shelf on the left side of the aisle
-      createSideShelves(group, x - width/2 - shelfDepth/2, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, 'left', aisleNumber, shelfBoxes);
+      createSideShelves(group, x - width/2 - shelfDepth/2, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, 'left', aisleNumber, shelfBoxes, shelfWidth, shelfLength);
       
       scene.add(group);
     }
     
-    function createSideShelves(group, shelfX, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, side, aisleNumber, shelfBoxes) {
+    function createSideShelves(group, shelfX, z, shelfLen, shelfDepth, shelfHeight, levels, shelfCount, postMat, shelfMat, side, aisleNumber, shelfBoxes, shelfWidth, shelfLength) {
       console.log('createSideShelves called with:', { shelfBoxes, levels, aisleNumber });
       
       // Create one shelf with 3 vertical rack levels
@@ -877,7 +876,7 @@
         
         // Create the rack shelf at this level
         const rackShelf = new THREE.Mesh(
-          new THREE.BoxGeometry(shelfDepth, 0.25, shelfLen), 
+          new THREE.BoxGeometry(shelfWidth, 0.25, shelfLength), 
           shelfMat
         );
         rackShelf.position.set(shelfX, rackY, z);
@@ -893,7 +892,7 @@
           // Distribute boxes across the shelf length - up to 6 boxes
           const maxBoxes = boxCount; // Remove the hardcoded limit of 3
           const boxWidth = 2.0; // Width of each box
-          const rackWidth = 12.0; // Increased rack width for better spacing
+          const rackWidth = shelfWidth; // Use the shelf width parameter
           const minSpacing = 1.0; // Minimum space between boxes
           const totalBoxWidth = maxBoxes * boxWidth;
           const totalSpacing = (maxBoxes - 1) * minSpacing;
@@ -1323,7 +1322,7 @@
             <div style="flex: 1;">
               <label style="font-size: 9px; color: #aaa;">Boxes:</label>
               <div class="slider-container">
-                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}" min="0" max="6" value="0" oninput="updateBoxCount(this)">
+                <input type="range" class="slider" id="rack${aisleNum}shelf${shelfNum}rack${r}" min="0" max="4" value="0" oninput="updateBoxCount(this)">
                 <span class="box-count" id="countrack${aisleNum}shelf${shelfNum}rack${r}">0</span>
               </div>
             </div>
@@ -1407,11 +1406,12 @@
     // Make generateWarehouse function global
     window.generateWarehouse = function() {
       const aisles = parseInt(document.getElementById('aisles').value) || 2;
-      const aisleWidth = parseFloat(document.getElementById('aisleWidth').value) || 6;
-      const aisleLength = parseFloat(document.getElementById('aisleLength').value) || 20;
-      const shelves = parseInt(document.getElementById('shelves').value) || 4;
+      const aisleWidth = 6; // Default aisle width
+      const aisleLength = 20; // Default aisle length
+      const shelfWidth = parseFloat(document.getElementById('shelfWidth').value) || 12;
+      const shelfLength = parseFloat(document.getElementById('shelfLength').value) || 8;
       
-      console.log('Generating warehouse with:', { aisles, aisleWidth, aisleLength, shelves });
+      console.log('Generating warehouse with:', { aisles, aisleWidth, aisleLength, shelfWidth, shelfLength });
       
       // Get rack counts and box counts for each aisle (one shelf per aisle)
       const allShelfData = [];
@@ -1437,7 +1437,7 @@
       }
       
       console.log('Final shelf data:', allShelfData);
-      makeScene(aisles, aisleWidth, aisleLength, 1, allShelfData); // Pass 1 for shelves since we only have one per aisle
+      makeScene(aisles, aisleWidth, aisleLength, 1, allShelfData, shelfWidth, shelfLength); // Pass shelf dimensions
     };
     
     // Initialize with default values
