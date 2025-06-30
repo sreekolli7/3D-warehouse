@@ -121,6 +121,84 @@
       -moz-user-select: none;
       -ms-user-select: none;
     }
+    
+    #controls-panel {
+      position: fixed;
+      right: 0;
+      top: 0;
+      width: 320px;
+      max-width: 90vw;
+      background: #222;
+      color: #fff;
+      z-index: 10;
+      transition: width 0.2s;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #controls-panel.minimized {
+      width: 40px;
+    }
+    #controls-content {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      max-height: 100vh;
+      padding-bottom: 1em;
+    }
+    #controls-panel.minimized #controls-content {
+      display: none;
+    }
+    #minimize-controls {
+      width: 100%;
+      background: #444;
+      color: #fff;
+      border: none;
+      font-size: 1.5em;
+      cursor: pointer;
+    }
+    #controls-content label,
+    #controls-content input,
+    #controls-content select {
+      display: block;
+      width: 100%;
+      margin-bottom: 0.7em;
+      font-size: 1em;
+      box-sizing: border-box;
+    }
+    #controls-content label {
+      margin-bottom: 0.2em;
+      font-weight: 500;
+    }
+    #controls-content input[type='number'],
+    #controls-content input[type='text'] {
+      padding: 0.4em;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-bottom: 0.7em;
+    }
+    #controls-content .card {
+      margin-bottom: 1em;
+      padding: 0.7em;
+      background: #292929;
+      border-radius: 6px;
+    }
+    @media (min-width: 600px) {
+      #controls-content label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      #controls-content label input {
+        width: 60%;
+        margin-left: 1em;
+      }
+    }
+    @media (max-width: 600px) {
+      #controls-content {
+        font-size: 1.1em;
+      }
+    }
   </style>
 </head>
 <body>
@@ -140,21 +218,24 @@
   </div>
   
   <!-- Warehouse Controls Panel -->
-  <div class="controls-panel">
-    <h2>🏪 Warehouse Controls</h2>
-    <p style="color: #ffa500; font-size: 12px;">Status: <span id="status">Loading...</span></p>
-    
-    <label>Number of Aisles: <input type="number" id="aisles" value="2" min="1" max="5" onchange="updateShelfControls()"></label>
-    <label>Shelf Width (m): <input type="number" id="shelfWidth" value="12" min="8" max="20" step="0.5"></label>
-    <label>Shelf Length (m): <input type="number" id="shelfLength" value="8" min="6" max="15" step="0.5"></label>
-    
-    <div id="shelfInputs">
-      <!-- Shelf controls will be generated dynamically -->
+  <div id="controls-panel">
+    <button id="minimize-controls" aria-label="Minimize controls">−</button>
+    <div id="controls-content">
+      <h2>🏪 Warehouse Controls</h2>
+      <p style="color: #ffa500; font-size: 12px;">Status: <span id="status">Loading...</span></p>
+      
+      <label>Number of Aisles: <input type="number" id="aisles" value="2" min="1" max="5" onchange="updateShelfControls()"></label>
+      <label>Shelf Width (m): <input type="number" id="shelfWidth" value="12" min="8" max="20" step="0.5"></label>
+      <label>Shelf Length (m): <input type="number" id="shelfLength" value="8" min="6" max="15" step="0.5"></label>
+      
+      <div id="shelfInputs">
+        <!-- Shelf controls will be generated dynamically -->
+      </div>
+      
+      <button onclick="generateWarehouse()">Generate Warehouse</button>
+      <button onclick="updateShelfControls()" style="background: #666;">Refresh Controls</button>
+      <button onclick="testThreeJS()" style="background: #4CAF50;">Test Three.js</button>
     </div>
-    
-    <button onclick="generateWarehouse()">Generate Warehouse</button>
-    <button onclick="updateShelfControls()" style="background: #666;">Refresh Controls</button>
-    <button onclick="testThreeJS()" style="background: #4CAF50;">Test Three.js</button>
   </div>
   <script type="module">
     import * as THREE from './three.module.js';
@@ -1555,6 +1636,11 @@
         console.error('Test scene failed:', error);
         return false;
       }
+    };
+
+    document.getElementById('minimize-controls').onclick = function() {
+      document.getElementById('controls-panel').classList.toggle('minimized');
+      this.textContent = document.getElementById('controls-panel').classList.contains('minimized') ? '+' : '−';
     };
   </script>
 </body>
