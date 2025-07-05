@@ -220,11 +220,14 @@ async function buildScene(cfg) {
         const boxWidth = Math.min(b.width, sh.width - 0.1);
         const boxHeight = Math.min(b.height, 1.5);
         const cx = xOff;
-        const cz = czCursor + boxDepth / 2;
+        let cz = czCursor + boxDepth / 2;
         let cy;
+        let crate;
 
         if (k < 3) {
           cy = by + boardTh/2 + 0.02 + boxHeight/2;
+          crate = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth), crateMat);
+          crate.position.set(cx, cy, cz);
           czCursor += boxDepth - 0.01; // slight overlap to avoid gaps
         } else {
           const stackLevel = Math.floor(k / 3);
@@ -233,33 +236,23 @@ async function buildScene(cfg) {
           const baseDepth = sh.boxes[baseIndex].length * scale;
           const baseCZ = -sh.length / 2 + sh.boxes.slice(0, baseIndex).reduce((acc, b) => acc + b.length * scale, 0) + baseDepth / 2;
           cy = by + boardTh/2 + 0.02 + boxHeight/2 + stackLevel * boxHeight;
-          const crate = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, boxHeight, baseDepth), crateMat);
+          crate = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, boxHeight, baseDepth), crateMat);
           crate.position.set(cx, cy, baseCZ);
-          crate.castShadow = crate.receiveShadow = true;
-          scene.add(crate);
-
-          // barcode for stacked crate
-          const barcodeTex = createBarcodeTexture(`BOX-${i+1}-${j+1}-${k+1}`);
-          const label = new THREE.Mesh(
-            new THREE.PlaneGeometry(boxWidth * 0.8, boxHeight * 0.3),
-            new THREE.MeshBasicMaterial({ map: barcodeTex, side: THREE.DoubleSide })
-          );
-          label.position.set(cx, cy, baseCZ + baseDepth/2 + 0.01);
-          scene.add(label);
-          return;
         }
-
-        const crate = new THREE.Mesh(new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth), crateMat);
-        crate.position.set(cx, cy, cz);
         crate.castShadow = crate.receiveShadow = true;
         scene.add(crate);
 
+        // Add barcode label
         const barcodeTex = createBarcodeTexture(`BOX-${i+1}-${j+1}-${k+1}`);
         const label = new THREE.Mesh(
           new THREE.PlaneGeometry(boxWidth * 0.8, boxHeight * 0.3),
           new THREE.MeshBasicMaterial({ map: barcodeTex, side: THREE.DoubleSide })
         );
-        label.position.set(cx, cy, cz + boxDepth/2 + 0.01);
+        if (k < 3) {
+          label.position.set(cx, cy, cz + boxDepth/2 + 0.01);
+        } else {
+          label.position.set(cx, cy, baseCZ + baseDepth/2 + 0.01);
+        }
         scene.add(label);
       });
       // bottom poles

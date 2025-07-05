@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D Warehouse</title>
   <style>
     body {
@@ -195,9 +195,38 @@
       }
     }
     @media (max-width: 600px) {
-      #controls-content {
-        font-size: 1.1em;
+      #controls-panel {
+        width: 80vw;
+        max-width: 80vw;
+        font-size: 0.95em;
+        pointer-events: none;
       }
+      #controls-panel.open {
+        pointer-events: auto;
+      }
+      #controls-content {
+        font-size: 1em;
+        padding: 0.3em;
+      }
+      #scene-container {
+        width: 100vw !important;
+        height: 45vh !important;
+        min-height: 180px;
+      }
+      .card {
+        margin: 0.3em 0;
+        padding: 0.3em;
+      }
+      input, select, button {
+        font-size: 1em;
+        min-height: 1.8em;
+      }
+    }
+    #scene-container {
+      width: 100vw;
+      height: 70vh;
+      min-height: 300px;
+      display: block;
     }
   </style>
 </head>
@@ -237,6 +266,7 @@
       <button onclick="testThreeJS()" style="background: #4CAF50;">Test Three.js</button>
     </div>
   </div>
+  <button id="controls-toggle-btn" aria-label="Show controls" style="display:none;">☰</button>
   <script type="module">
     import * as THREE from './three.module.js';
     
@@ -1641,6 +1671,23 @@
     document.getElementById('minimize-controls').onclick = function() {
       document.getElementById('controls-panel').classList.toggle('minimized');
       this.textContent = document.getElementById('controls-panel').classList.contains('minimized') ? '+' : '−';
+    };
+
+    function checkMobile() {
+      if (window.innerWidth <= 600) {
+        document.getElementById('controls-toggle-btn').style.display = 'flex';
+        document.getElementById('controls-panel').classList.remove('open');
+      } else {
+        document.getElementById('controls-toggle-btn').style.display = 'none';
+        document.getElementById('controls-panel').classList.add('open');
+      }
+    }
+    window.addEventListener('resize', checkMobile);
+    document.addEventListener('DOMContentLoaded', checkMobile);
+
+    document.getElementById('controls-toggle-btn').onclick = function() {
+      const panel = document.getElementById('controls-panel');
+      panel.classList.toggle('open');
     };
   </script>
 </body>
